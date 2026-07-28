@@ -6,10 +6,12 @@
  * No Playwright, no Puppeteer — just CDP. Works on Termux/Android and everywhere else.
  *
  * Configuration (ordered by precedence: CLI arg > env var > default):
- *   --browser-path / BWB_CHROME_PATH     — Path to Chrome/Chromium executable
- *   --port / BWB_CDP_PORT                — Remote debugging port (default: 9222)
- *   --user-data-dir / BWB_USER_DATA_DIR  — Browser profile directory
- *   --headless / BWB_HEADLESS            — Run headless (default: true)
+ *   --browser-path / BWB_CHROME_PATH        — Path to Chrome/Chromium executable
+ *   --port / BWB_CDP_PORT                   — Remote debugging port (default: 9222)
+ *   --user-data-dir / BWB_USER_DATA_DIR     — Browser profile directory
+ *   --headless / BWB_HEADLESS               — Run headless (default: true)
+ *   --screenshots-dir / BWB_SCREENSHOTS_DIR — Directory for saved screenshots
+ *   --timeout / BWB_NAV_TIMEOUT             — Navigation timeout in ms (default: 30000)
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -17,11 +19,14 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { spawn, execSync } from "child_process";
 import CDP from "chrome-remote-interface";
-import { existsSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { homedir, platform } from "os";
-import { join } from "path";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -32,7 +37,9 @@ function parseArgs() {
       case "--port": cfg.port = parseInt(args[++i], 10); break;
       case "--user-data-dir": cfg.userDataDir = args[++i]; break;
       case "--headless": cfg.headless = args[++i] !== "false"; break;
-      case "--version": console.log("bwb-browser-termux 1.0.8"); process.exit(0);
+      case "--screenshots-dir": cfg.screenshotsDir = args[++i]; break;
+      case "--timeout": cfg.navTimeout = parseInt(args[++i], 10); break;
+      case "--version": console.log("bwb-browser-termux 1.1.0"); process.exit(0);
       case "--help": printHelp(); process.exit(0);
     }
   }
@@ -51,6 +58,8 @@ OPTIONS:
   --port <number>          CDP debug port (default: 9222)
   --user-data-dir <path>   Browser profile directory
   --headless <bool>        Run headless (default: true)
+  --screenshots-dir <path> Directory to save screenshots (default: ~/bwb-screenshots)
+  --timeout <ms>           Navigation timeout in ms (default: 30000)
   --version                Print version
   --help                   Show this help
 
@@ -59,6 +68,8 @@ ENVIRONMENT VARIABLES:
   BWB_CDP_PORT             CDP debug port
   BWB_USER_DATA_DIR        Browser profile directory
   BWB_HEADLESS             Run headless (true/false)
+  BWB_SCREENSHOTS_DIR      Directory to save screenshots
+  BWB_NAV_TIMEOUT          Navigation timeout in ms
 
 TOOLS (11):
   browser_goto       Navigate to a URL
@@ -75,18 +86,77 @@ TOOLS (11):
 `);
 }
 
-function detectBrowser() {
-  const cli = parseArgs();
-  const envPath = process.env.BWB_CHROME_PATH;
-  const cliPath = cli.browserPath;
+// ─── Dependency Check ─────────────────────────────────────────────────────────
 
+// Verify all dependencies are resolvable before starting MCP server
+async function ensureDeps() {
+  const { createRequire } = await import("module");
+  const req = createRequire(import.meta.url);
+  const needed = [
+    "@modelcontextprotocol/sdk/server/mcp.js",
+    "zod",
+    "chrome-remote-interface",
+  ];
+  const missing = [];
+  for (const spec of needed) {
+    try {
+      req.resolve(spec);
+    } catch {
+      missing.push(spec.split("/")[0].split("@")[0] || spec);
+    }
+  }
+  if (missing.length > 0) {
+    console.error(
+      `\nMissing dependencies: ${missing.join(", ")}\n` +
+      `Run: npm install -g bwb-browser-termux\n` +
+      `Or:  cd "${__dirname}" && npm install\n` +
+      `Or:  npx bwb-browser-termux\n`
+    );
+    process.exit(1);
+  }
+}
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+const cfg = { ...parseArgs() };
+cfg.port = cfg.port || parseInt(process.env.BWB_CDP_PORT || "0", 10);
+cfg.headless = cfg.headless !== undefined ? cfg.headless : (process.env.BWB_HEADLESS !== "false");
+cfg.userDataDir = cfg.userDataDir || process.env.BWB_USER_DATA_DIR || join(homedir(), ".cache", "bwb-browser");
+cfg.screenshotsDir = cfg.screenshotsDir || process.env.BWB_SCREENSHOTS_DIR || join(homedir(), "bwb-screenshots");
+cfg.navTimeout = cfg.navTimeout || parseInt(process.env.BWB_NAV_TIMEOUT || "30000", 10);
+
+// Ensure screenshots directory exists
+try { mkdirSync(cfg.screenshotsDir, { recursive: true }); } catch {}
+
+let browser = null;
+let protocol = null;
+let browserStartup = null;
+let browserExited = false;
+let actualCdpPort = null; // actual port Chrome picked (parsed from stderr)
+
+// ─── Kill Orphaned Chrome (Termux-safe) ───────────────────────────────────────
+
+// `fuser -k` and `lsof` can't read /proc/net/tcp on Termux/Android (permission denied).
+// Instead, kill by PID from `ps` — works on every platform.
+function killOrphanedChrome() {
+  try {
+    execSync(
+      `ps aux | grep -E "[c]hrome" | grep -v grep | awk '{print $2}' | xargs -r kill -9 2>/dev/null; true`,
+      { encoding: "utf8", timeout: 5000 }
+    );
+  } catch {}
+}
+
+// ─── Browser Detection ────────────────────────────────────────────────────────
+
+function findBrowserPath(cliPath) {
   if (cliPath) return cliPath;
+  const envPath = process.env.BWB_CHROME_PATH;
   if (envPath) return envPath;
 
   const os = platform();
   const home = homedir();
 
-  // Ordered search paths per platform
   const candidates = {
     android: [
       "/data/data/com.termux/files/usr/bin/chromium-browser",
@@ -125,33 +195,37 @@ function detectBrowser() {
   return null;
 }
 
-// ─── Browser Lifecycle ────────────────────────────────────────────────────────
-
-const cfg = { ...parseArgs() };
-cfg.port = cfg.port || parseInt(process.env.BWB_CDP_PORT || "9222", 10);
-cfg.headless = cfg.headless !== undefined ? cfg.headless : (process.env.BWB_HEADLESS !== "false");
-cfg.userDataDir = cfg.userDataDir || process.env.BWB_USER_DATA_DIR || join(homedir(), ".cache", "bwb-browser");
-
-let browser = null;
-let protocol = null;
-let browserStartup = null;
-
-async function findBrowser() {
-  const path = detectBrowser();
+function assertBrowserExists(cliPath) {
+  const path = findBrowserPath(cliPath);
   if (!path) {
     throw new Error(
       "Cannot find Chrome/Chromium. Set BWB_CHROME_PATH env var or pass --browser-path.\n" +
       "Install on Termux: pkg install chromium\n" +
       "Install on Linux:  apt install chromium-browser\n" +
-      "Install on macOS:  brew install --cask google-chrome"
+      "Install on macOS:  brew install --cask google-chrome\n" +
+      "Install on Windows: Download from https://www.google.com/chrome/"
     );
   }
   return path;
 }
 
+// ─── Browser Lifecycle ────────────────────────────────────────────────────────
+
 async function ensureBrowser() {
-  if (protocol) return protocol;
+  // If protocol is active, return it
+  if (protocol && !browserExited) return protocol;
+
+  // If another call is already starting the browser, join it
   if (browserStartup) return browserStartup;
+
+  // Close stale protocol if browser was restarted
+  if (protocol) {
+    try { await protocol.close(); } catch {}
+    protocol = null;
+  }
+  // Reset exit flag if trying to restart
+  browserExited = false;
+  actualCdpPort = null;
 
   let startResolve, startReject;
   browserStartup = new Promise((res, rej) => { startResolve = res; startReject = rej; });
@@ -159,7 +233,16 @@ async function ensureBrowser() {
 
   (async () => {
     try {
-      const browserPath = await findBrowser();
+      const browserPath = assertBrowserExists(cfg.browserPath);
+
+      // Kill any lingering Chrome processes from previous sessions
+      // Cannot use `fuser -k` on Termux (no /proc/net/tcp access)
+      killOrphanedChrome();
+      // Small pause for OS to release resources
+      await new Promise(r => setTimeout(r, 500));
+
+      // Port 0 = Chrome picks a random free port (avoids conflicts)
+      const debugPort = cfg.port || 0;
       const args = [
         "--headless",
         "--no-sandbox",
@@ -167,7 +250,7 @@ async function ensureBrowser() {
         "--disable-dev-shm-usage",
         "--disable-setuid-sandbox",
         "--disable-software-rasterizer",
-        "--remote-debugging-port=" + cfg.port,
+        "--remote-debugging-port=" + debugPort,
         "--user-data-dir=" + cfg.userDataDir,
       ];
 
@@ -179,32 +262,59 @@ async function ensureBrowser() {
       });
 
       let resolved = false;
-      const timeout = setTimeout(() => {
+
+      // Mark browser as exited when process dies
+      browser.on("exit", (code, signal) => {
+        browserExited = true;
         if (!resolved) {
+          // Browser died before CDP connected
+          clearTimeout(startTimeout);
+          startReject(new Error(`Browser exited with code ${code} (signal ${signal}) before CDP connected`));
+        }
+        // Don't reset protocol here — let the next ensureBrowser() call handle it
+      });
+
+      browser.on("error", (err) => {
+        if (!resolved) {
+          clearTimeout(startTimeout);
+          startReject(new Error(`Browser spawn failed: ${err.message}`));
+        }
+      });
+
+      const startTimeout = setTimeout(() => {
+        if (!resolved) {
+          browserExited = true;
+          try { browser.kill("SIGKILL"); } catch {}
           startReject(new Error(`Browser startup timed out after 15s. Check: ${browserPath}`));
         }
       }, 15000);
 
       const listener = (data) => {
         const msg = data.toString();
-        if (msg.includes("DevTools listening on")) {
-          clearTimeout(timeout);
+        // Extract actual port from: "DevTools listening on ws://127.0.0.1:PORT/PATH"
+        // CDP() accepts {port: N} — NOT a ws:// URL as endpoint
+        const portMatch = msg.match(/DevTools listening on ws:\/\/[^:]+:(\d+)\//);
+        if (portMatch) {
+          actualCdpPort = parseInt(portMatch[1], 10);
+          clearTimeout(startTimeout);
           resolved = true;
-          CDP({ port: cfg.port })
-            .then((p) => { protocol = p; startResolve(p); })
-            .catch(startReject);
+          CDP({ port: actualCdpPort })
+            .then((p) => {
+              protocol = p;
+              startResolve(p);
+            })
+            .catch((err) => {
+              try { browser.kill("SIGKILL"); } catch {}
+              browserExited = true;
+              startReject(new Error(`CDP connection failed: ${err.message}`));
+            });
         }
       };
 
       browser.stderr.on("data", listener);
-      browser.on("error", (err) => {
-        if (!resolved) {
-          clearTimeout(timeout);
-          startReject(new Error(`Browser spawn failed: ${err.message}`));
-        }
-      });
     } catch (err) {
       browserStartup = null;
+      browserExited = true;
       startReject(err);
     }
   })();
@@ -212,25 +322,166 @@ async function ensureBrowser() {
   return browserStartup;
 }
 
-async function cleanup() {
+// ─── Navigation Helper ────────────────────────────────────────────────────────
+
+async function gotoUrl(page, runtime, url, timeoutMs) {
+  await page.enable();
+
+  // Register event listeners BEFORE calling navigate
+  // loadEventFired fires when page fully loads (CSS, images, etc.)
+  const loadPromise = page.loadEventFired().then(() => true);
+  // First meaningful paint — earlier than load for faster SPAs
+  const domPromise = page.domContentEventFired().then(() => true);
+
+  await page.navigate({ url });
+
+  // Wait for load event OR timeout, whichever comes first
+  await Promise.race([
+    Promise.all([loadPromise, domPromise]),
+    new Promise(r => setTimeout(() => r(false), timeoutMs)),
+  ]);
+
+  // Small grace for JS framework rendering
+  await new Promise(r => setTimeout(r, 500));
+
+  const { result } = await runtime.evaluate({ expression: "document.title" });
+  return { title: result?.value || "", url };
+}
+
+// ─── Click Helper (uses CDP Input.dispatchMouseEvent) ─────────────────────────
+
+async function clickElement(page, runtime, input, selector) {
+  // Get element bounding box via JS
+  const { result } = await runtime.evaluate({
+    expression: `(() => {
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) return JSON.stringify({ error: 'NOT_FOUND' });
+      const rect = el.getBoundingClientRect();
+      return JSON.stringify({
+        x: rect.x + rect.width / 2,
+        y: rect.y + rect.height / 2,
+        width: rect.width,
+        height: rect.height,
+        tag: el.tagName,
+        text: (el.textContent || '').trim().slice(0, 50),
+      });
+    })()`,
+  });
+
+  let info;
+  try { info = JSON.parse(result.value); } catch {
+    throw new Error(`Element not found: ${selector}`);
+  }
+
+  if (info.error === "NOT_FOUND") {
+    throw new Error(`Element not found: ${selector}`);
+  }
+
+  // Also try native click for form elements
+  await runtime.evaluate({
+    expression: `document.querySelector(${JSON.stringify(selector)})?.click()`,
+  });
+
+  // Dispatch real mouse events via CDP Input domain
+  const x = Math.round(info.x);
+  const y = Math.round(info.y);
+  await input.dispatchMouseEvent({ type: "mousePressed", x, y, button: "left", clickCount: 1 });
+  await input.dispatchMouseEvent({ type: "mouseReleased", x, y, button: "left", clickCount: 1 });
+
+  return info;
+}
+
+// ─── Fill Helper (uses CDP Input.insertText) ──────────────────────────────────
+
+async function fillElement(page, runtime, input, selector, text) {
+  // Focus the element first
+  const { result } = await runtime.evaluate({
+    expression: `(() => {
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) return 'NOT_FOUND';
+      el.focus();
+      el.value = '';
+      return 'FOCUSED';
+    })()`,
+  });
+
+  if (result.value === "NOT_FOUND") {
+    throw new Error(`Element not found: ${selector}`);
+  }
+
+  // Clear existing text via CDP Input domain
+  await input.dispatchKeyEvent({ type: "keyDown", key: "Control" });
+  await input.dispatchKeyEvent({ type: "keyDown", key: "a" });
+  await input.dispatchKeyEvent({ type: "keyUp", key: "a" });
+  await input.dispatchKeyEvent({ type: "keyUp", key: "Control" });
+  await input.dispatchKeyEvent({ type: "keyDown", key: "Delete" });
+  await input.dispatchKeyEvent({ type: "keyUp", key: "Delete" });
+
+  // Insert text via CDP Input domain
+  await input.insertText({ text });
+}
+
+// ─── Screenshot Helper ────────────────────────────────────────────────────────
+
+function saveScreenshot(base64Data) {
+  const now = new Date();
+  const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const filename = `bwb-${timestamp}.jpeg`;
+  const filepath = join(cfg.screenshotsDir, filename);
   try {
-    if (protocol) await protocol.close();
-  } catch {}
-  if (browser) {
-    browser.kill("SIGKILL");
-    setTimeout(() => browser?.kill("SIGTERM"), 1000);
+    mkdirSync(cfg.screenshotsDir, { recursive: true });
+    writeFileSync(filepath, Buffer.from(base64Data, "base64"));
+    return filepath;
+  } catch (err) {
+    return null;
   }
 }
 
-process.on("exit", cleanup);
-process.on("SIGINT", () => { cleanup(); process.exit(0); });
-process.on("SIGTERM", () => { cleanup(); process.exit(0); });
+// ─── Cleanup ──────────────────────────────────────────────────────────────────
+
+let cleaningUp = false;
+
+function cleanupSync() {
+  if (cleaningUp) return;
+  cleaningUp = true;
+  try {
+    if (browser) {
+      browser.kill("SIGTERM");
+      // Max 3s for graceful shutdown
+      setTimeout(() => {
+        try { browser?.kill("SIGKILL"); } catch {}
+      }, 3000);
+      browser = null;
+    }
+  } catch {}
+}
+
+async function cleanupAsync() {
+  if (cleaningUp) return;
+  cleaningUp = true;
+  try {
+    if (protocol) await protocol.close();
+  } catch {}
+  try {
+    if (browser) {
+      browser.kill("SIGTERM");
+      await new Promise(r => setTimeout(r, 2000));
+      try { browser?.kill("SIGKILL"); } catch {}
+      browser = null;
+    }
+  } catch {}
+}
+
+process.on("exit", cleanupSync);
+process.on("SIGINT", () => { cleanupSync(); process.exit(0); });
+process.on("SIGTERM", () => { cleanupSync(); process.exit(0); });
+process.on("SIGHUP", () => { cleanupSync(); process.exit(0); });
 
 // ─── MCP Server ───────────────────────────────────────────────────────────────
 
 const server = new McpServer({
   name: "bwb-browser-termux",
-  version: "1.0.8",
+  version: "1.1.0",
 });
 
 // Tool implementations
@@ -241,11 +492,8 @@ const tools = {
     handler: async ({ url }) => {
       const p = await ensureBrowser();
       const { Page, Runtime } = p;
-      await Page.enable();
-      await Page.navigate({ url });
-      await new Promise(r => setTimeout(r, 2000));
-      const { result } = await Runtime.evaluate({ expression: "document.title" });
-      return { content: [{ type: "text", text: JSON.stringify({ title: result.value, url }) }] };
+      const result = await gotoUrl(Page, Runtime, url, cfg.navTimeout);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
     },
   },
 
@@ -258,8 +506,21 @@ const tools = {
     handler: async ({ fullPage = false, quality = 80 }) => {
       const p = await ensureBrowser();
       const { Page } = p;
-      const { data } = await Page.captureScreenshot({ format: "jpeg", quality, captureBeyondViewport: fullPage });
-      return { content: [{ type: "image", data, mimeType: "image/jpeg" }] };
+      const { data } = await Page.captureScreenshot({
+        format: "jpeg",
+        quality,
+        captureBeyondViewport: fullPage,
+      });
+      // Save to disk for user access
+      const savedPath = saveScreenshot(data);
+      const response = { screenshot: `data:image/jpeg;base64,${data.slice(0, 40)}...` };
+      if (savedPath) response.savedTo = savedPath;
+      return {
+        content: [
+          { type: "image", data, mimeType: "image/jpeg" },
+          { type: "text", text: JSON.stringify(response) },
+        ],
+      };
     },
   },
 
@@ -273,7 +534,7 @@ const tools = {
         ? `document.querySelector(${JSON.stringify(selector)})?.outerHTML || ''`
         : "document.documentElement.outerHTML";
       const { result } = await Runtime.evaluate({ expression: expr });
-      return { content: [{ type: "text", text: result.value || "" }] };
+      return { content: [{ type: "text", text: result?.value || "" }] };
     },
   },
 
@@ -287,39 +548,37 @@ const tools = {
         ? `document.querySelector(${JSON.stringify(selector)})?.textContent || ''`
         : "document.body?.textContent || ''";
       const { result } = await Runtime.evaluate({ expression: expr });
-      return { content: [{ type: "text", text: result.value || "" }] };
+      return { content: [{ type: "text", text: result?.value || "" }] };
     },
   },
 
   browser_click: {
-    description: "Click an element by CSS selector.",
+    description: "Click an element by CSS selector. Uses CDP Input.dispatchMouseEvent for native events.",
     schema: { selector: z.string().describe("CSS selector") },
     handler: async ({ selector }) => {
       const p = await ensureBrowser();
-      const { Runtime } = p;
-      const { result } = await Runtime.evaluate({
-        expression: `(()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el)return 'NOT_FOUND';if(typeof el.click==='function'){el.click();return 'CLICKED'}return 'NOT_CLICKABLE'})()`,
-      });
-      const status = result.value;
-      if (status === "NOT_FOUND") throw new Error(`Element not found: ${selector}`);
-      return { content: [{ type: "text", text: `Clicked ${selector}` }] };
+      const { Page, Runtime, Input } = p;
+      const info = await clickElement(Page, Runtime, Input, selector);
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({ clicked: selector, tag: info.tag, text: info.text }),
+        }],
+      };
     },
   },
 
   browser_fill: {
-    description: "Clear and fill an input field with text.",
+    description: "Clear and fill an input field with text using native CDP Input.insertText.",
     schema: {
       selector: z.string().describe("CSS selector for input"),
       text: z.string().describe("Text to fill"),
     },
     handler: async ({ selector, text }) => {
       const p = await ensureBrowser();
-      const { Runtime } = p;
-      const { result } = await Runtime.evaluate({
-        expression: `(()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el)return 'NOT_FOUND';el.value='';el.value=${JSON.stringify(text)};el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return 'FILLED'})()`,
-      });
-      if (result.value === "NOT_FOUND") throw new Error(`Element not found: ${selector}`);
-      return { content: [{ type: "text", text: `Filled ${selector}` }] };
+      const { Page, Runtime, Input } = p;
+      await fillElement(Page, Runtime, Input, selector, text);
+      return { content: [{ type: "text", text: JSON.stringify({ filled: selector, text }) }] };
     },
   },
 
@@ -336,9 +595,18 @@ const tools = {
         headings: "document.querySelectorAll('h1,h2,h3,h4,h5,h6')",
       };
       const { result } = await Runtime.evaluate({
-        expression: `(()=>{return Array.from(${selectors[kind]}).map(el=>({tag:el.tagName.toLowerCase(),text:(el.textContent||'').trim().slice(0,100),id:el.id||'',className:(el.className||'').toString().slice(0,50)}))})()`,
+        expression: `(() => {
+          const items = Array.from(${selectors[kind]});
+          return items.map(el => ({
+            tag: el.tagName.toLowerCase(),
+            text: (el.textContent || '').trim().slice(0, 100),
+            id: el.id || '',
+            className: (el.className || '').toString().slice(0, 50),
+          }));
+        })()`,
+        returnByValue: true,
       });
-      return { content: [{ type: "text", text: JSON.stringify(result.value) }] };
+      return { content: [{ type: "text", text: JSON.stringify(result?.value || []) }] };
     },
   },
 
@@ -349,7 +617,7 @@ const tools = {
       const p = await ensureBrowser();
       const { Runtime } = p;
       const { result } = await Runtime.evaluate({ expression: "document.title" });
-      return { content: [{ type: "text", text: result.value || "" }] };
+      return { content: [{ type: "text", text: result?.value || "" }] };
     },
   },
 
@@ -360,7 +628,7 @@ const tools = {
       const p = await ensureBrowser();
       const { Runtime } = p;
       const { result } = await Runtime.evaluate({ expression: "window.location.href" });
-      return { content: [{ type: "text", text: result.value || "" }] };
+      return { content: [{ type: "text", text: result?.value || "" }] };
     },
   },
 
@@ -370,8 +638,16 @@ const tools = {
     handler: async ({ expression }) => {
       const p = await ensureBrowser();
       const { Runtime } = p;
-      const { result } = await Runtime.evaluate({ expression });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      // Runtime.evaluate returns { result: {...}, exceptionDetails?: {...} }
+      // Check exceptionDetails BEFORE destructuring result
+      const response = await Runtime.evaluate({ expression, returnByValue: true });
+      if (response.exceptionDetails) {
+        const exc = response.exceptionDetails;
+        const msg = exc.exception?.description || exc.text || "Unknown JS error";
+        throw new Error(`JS Error: ${msg}`);
+      }
+      const { result } = response;
+      return { content: [{ type: "text", text: JSON.stringify(result?.value ?? result) }] };
     },
   },
 
@@ -379,21 +655,30 @@ const tools = {
     description: "Get browser and page status including connected tabs.",
     schema: {},
     handler: async () => {
-      try {
-        const targets = await CDP.List({ port: cfg.port });
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              connected: true,
-              port: cfg.port,
-              targets: targets.map(t => ({ type: t.type, url: t.url, title: t.title })),
-            }),
-          }],
-        };
-      } catch {
-        return { content: [{ type: "text", text: JSON.stringify({ connected: false, port: cfg.port }) }] };
+      const status = { connected: false, port: cfg.port, actualPort: null, running: false, pid: null };
+      if (browser && !browserExited) {
+        status.running = true;
+        status.pid = browser.pid;
+        try {
+          // Use actual port Chrome picked, or try configured port
+          let targets;
+          if (actualCdpPort) {
+            status.actualPort = actualCdpPort;
+            targets = await CDP.List({ port: actualCdpPort });
+          } else {
+            targets = await CDP.List({ port: cfg.port || 9222 });
+          }
+          status.connected = true;
+          status.targets = targets.map(t => ({
+            type: t.type,
+            url: t.url,
+            title: t.title,
+          }));
+        } catch {
+          status.connected = false;
+        }
       }
+      return { content: [{ type: "text", text: JSON.stringify(status) }] };
     },
   },
 };
@@ -405,5 +690,6 @@ for (const [name, tool] of Object.entries(tools)) {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
+await ensureDeps();
 const transport = new StdioServerTransport();
 await server.connect(transport);
