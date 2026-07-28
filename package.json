@@ -1,26 +1,16 @@
 {
   "name": "bwb-browser",
   "version": "2.0.1",
-  "description": "Browser Without Bloat — lightweight browser automation MCP server using raw CDP. 30KB, zero bloat, works on any platform.",
+  "description": "Browser Without Bloat — 30KB MCP browser automation server. Raw CDP, zero bloat, works on any platform.",
   "bin": {
     "bwb": "bin/bwb"
   },
   "files": [
     "server.mjs",
     "bin/bwb",
-    "AGENTS.md"
-  ],
-  "keywords": ["browser", "automation", "mcp", "cdp", "chrome", "headless", "ai-agent", "llm"],
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/krshforever/bwb-browser.git"
-  },
-  "files": [
-    "bin/bwb",
-    "server.mjs",
-    "README.md",
-    "LICENSE"
+    "AGENTS.md",
+    "LICENSE",
+    "README.md"
   ],
   "scripts": {
     "start": "node server.mjs",
@@ -33,22 +23,21 @@
     "automation",
     "cdp",
     "chrome-devtools-protocol",
-    "termux",
-    "android",
     "headless",
     "bwb",
-    "browser-without-bloat"
+    "browser-without-bloat",
+    "ai-agent"
   ],
-  "author": "krsh",
+  "author": "Krish Tiwari (@krshforever)",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/krshforever/bwb-browser-termux.git"
+    "url": "git+https://github.com/krshforever/bwb-browser.git"
   },
   "bugs": {
-    "url": "https://github.com/krshforever/bwb-browser-termux/issues"
+    "url": "https://github.com/krshforever/bwb-browser/issues"
   },
-  "homepage": "https://github.com/krshforever/bwb-browser-termux#readme",
+  "homepage": "https://github.com/krshforever/bwb-browser#readme",
   "engines": {
     "node": ">=18.0.0"
   },
