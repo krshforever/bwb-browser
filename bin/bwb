@@ -1,2 +1,2 @@
 #!/usr/bin/env node
-import "../server.mjs";
+import("../server.mjs").catch(e => { console.error("bwb:", e.message); process.exit(1); });
