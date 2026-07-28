@@ -1,0 +1,50 @@
+{
+  "name": "bwb-browser-termux",
+  "version": "1.0.0",
+  "description": "Browser Without Bloat — a lightweight browser automation MCP server using raw Chrome DevTools Protocol. No Playwright. No Puppeteer. Just CDP. Works on Termux/Android.",
+  "type": "module",
+  "main": "./server.js",
+  "bin": {
+    "bwb": "./server.js"
+  },
+  "files": [
+    "server.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --check server.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "browser",
+    "automation",
+    "cdp",
+    "chrome-devtools-protocol",
+    "termux",
+    "android",
+    "headless",
+    "bwb",
+    "browser-without-bloat"
+  ],
+  "author": "krsh",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/krshforever/bwb-browser-termux.git"
+  },
+  "bugs": {
+    "url": "https://github.com/krshforever/bwb-browser-termux/issues"
+  },
+  "homepage": "https://github.com/krshforever/bwb-browser-termux#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "chrome-remote-interface": "^0.34.0",
+    "zod": "^3.22.0"
+  }
+}
