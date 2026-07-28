@@ -32,7 +32,7 @@ function parseArgs() {
       case "--port": cfg.port = parseInt(args[++i], 10); break;
       case "--user-data-dir": cfg.userDataDir = args[++i]; break;
       case "--headless": cfg.headless = args[++i] !== "false"; break;
-      case "--version": console.log("bwb-browser-termux v1.0.0"); process.exit(0);
+      case "--version": console.log("bwb-browser-termux 1.0.5"); process.exit(0);
       case "--help": printHelp(); process.exit(0);
     }
   }
@@ -221,7 +221,7 @@ process.on("SIGTERM", () => { cleanup(); process.exit(0); });
 
 const server = new McpServer({
   name: "bwb-browser-termux",
-  version: "1.0.0",
+  version: "1.0.5",
 });
 
 // Tool implementations
