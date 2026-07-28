@@ -1,6 +1,6 @@
 {
   "name": "bwb-browser",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Browser Without Bloat — 30KB MCP browser automation server. Raw CDP, zero bloat, works on any platform.",
   "bin": {
     "bwb": "bin/bwb"

@@ -39,7 +39,7 @@ function parseArgs() {
       case "--headless": cfg.headless = args[++i] !== "false"; break;
       case "--screenshots-dir": cfg.screenshotsDir = args[++i]; break;
       case "--timeout": cfg.navTimeout = parseInt(args[++i], 10); break;
-      case "--version": console.log("bwb-browser 2.0.2"); process.exit(0);
+      case "--version": console.log("bwb-browser 2.0.3"); process.exit(0);
       case "--help": printHelp(); process.exit(0);
     }
   }
@@ -600,7 +600,7 @@ async function waitForSelector(runtime, selector, opts = {}) {
 
 const server = new McpServer({
   name: "bwb-browser",
-  version: "2.0.2",
+  version: "2.0.3",
 });
 
 // Tool implementations
