@@ -32,7 +32,7 @@ function parseArgs() {
       case "--port": cfg.port = parseInt(args[++i], 10); break;
       case "--user-data-dir": cfg.userDataDir = args[++i]; break;
       case "--headless": cfg.headless = args[++i] !== "false"; break;
-      case "--version": console.log("bwb-browser-termux 1.0.6"); process.exit(0);
+      case "--version": console.log("bwb-browser-termux 1.0.7"); process.exit(0);
       case "--help": printHelp(); process.exit(0);
     }
   }
@@ -134,6 +134,7 @@ cfg.userDataDir = cfg.userDataDir || process.env.BWB_USER_DATA_DIR || join(homed
 
 let browser = null;
 let protocol = null;
+let browserStartup = null;
 
 async function findBrowser() {
   const path = detectBrowser();
@@ -150,10 +151,11 @@ async function findBrowser() {
 
 async function ensureBrowser() {
   if (protocol) return protocol;
+  if (browserStartup) return browserStartup;
 
   const browserPath = await findBrowser();
 
-  return new Promise((resolve, reject) => {
+  browserStartup = new Promise((resolve, reject) => {
     const args = [
       "--headless",
       "--no-sandbox",
@@ -201,6 +203,10 @@ async function ensureBrowser() {
       }
     });
   });
+
+  browserStartup.catch(() => { browserStartup = null; });
+
+  return browserStartup;
 }
 
 async function cleanup() {
@@ -221,7 +227,7 @@ process.on("SIGTERM", () => { cleanup(); process.exit(0); });
 
 const server = new McpServer({
   name: "bwb-browser-termux",
-  version: "1.0.6",
+  version: "1.0.7",
 });
 
 // Tool implementations
