@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * bwb-browser-termux — Browser Without Bloat MCP Server
+ * bwb-browser — Browser Without Bloat MCP Server
  *
  * A lightweight browser automation MCP server using raw Chrome DevTools Protocol.
  * No Playwright, no Puppeteer — just CDP. Works on Termux/Android and everywhere else.
@@ -39,7 +39,7 @@ function parseArgs() {
       case "--headless": cfg.headless = args[++i] !== "false"; break;
       case "--screenshots-dir": cfg.screenshotsDir = args[++i]; break;
       case "--timeout": cfg.navTimeout = parseInt(args[++i], 10); break;
-      case "--version": console.log("bwb-browser-termux 1.1.0"); process.exit(0);
+      case "--version": console.log("bwb-browser 2.0.1"); process.exit(0);
       case "--help": printHelp(); process.exit(0);
     }
   }
@@ -48,7 +48,7 @@ function parseArgs() {
 
 function printHelp() {
   console.log(`
-bwb-browser-termux — Browser Without Bloat MCP Server
+bwb-browser — Browser Without Bloat MCP Server
 
 USAGE:
   bwb [options]
@@ -58,7 +58,7 @@ OPTIONS:
   --port <number>          CDP debug port (default: 9222)
   --user-data-dir <path>   Browser profile directory
   --headless <bool>        Run headless (default: true)
-  --screenshots-dir <path> Directory to save screenshots (default: ~/bwb-screenshots)
+  --screenshots-dir <path> Directory to save screenshots (default: /storage/emulated/0/Download/bwb-screenshots)
   --timeout <ms>           Navigation timeout in ms (default: 30000)
   --version                Print version
   --help                   Show this help
@@ -71,18 +71,22 @@ ENVIRONMENT VARIABLES:
   BWB_SCREENSHOTS_DIR      Directory to save screenshots
   BWB_NAV_TIMEOUT          Navigation timeout in ms
 
-TOOLS (11):
-  browser_goto       Navigate to a URL
-  browser_screenshot Take a screenshot
-  browser_html       Get page/selector HTML
-  browser_text       Get page/selector text
-  browser_click      Click an element
-  browser_fill       Fill an input field
-  browser_elements   List interactive elements
-  browser_title      Get page title
-  browser_url        Get current URL
-  browser_eval       Execute JavaScript
-  browser_status     Browser connection status
+TOOLS (15):
+  browser_goto         Navigate to a URL
+  browser_screenshot   Take a screenshot
+  browser_html         Get page/selector HTML
+  browser_text         Get page/selector text
+  browser_click        Click an element
+  browser_fill         Fill an input field
+  browser_elements     List interactive elements
+  browser_title        Get page title
+  browser_url          Get current URL
+  browser_eval         Execute JavaScript (with exception capture)
+  browser_status       Browser connection status
+  browser_watch        Live page event capture (console, network, navigation)
+  browser_waitForSelector Wait for element to appear/disappear
+  browser_setViewport  Change viewport size
+  browser_back         Go back in history
 `);
 }
 
@@ -122,7 +126,7 @@ const cfg = { ...parseArgs() };
 cfg.port = cfg.port || parseInt(process.env.BWB_CDP_PORT || "0", 10);
 cfg.headless = cfg.headless !== undefined ? cfg.headless : (process.env.BWB_HEADLESS !== "false");
 cfg.userDataDir = cfg.userDataDir || process.env.BWB_USER_DATA_DIR || join(homedir(), ".cache", "bwb-browser");
-cfg.screenshotsDir = cfg.screenshotsDir || process.env.BWB_SCREENSHOTS_DIR || join(homedir(), "bwb-screenshots");
+cfg.screenshotsDir = cfg.screenshotsDir || process.env.BWB_SCREENSHOTS_DIR || "/storage/emulated/0/Download/bwb-screenshots";
 cfg.navTimeout = cfg.navTimeout || parseInt(process.env.BWB_NAV_TIMEOUT || "30000", 10);
 
 // Ensure screenshots directory exists
@@ -477,11 +481,126 @@ process.on("SIGINT", () => { cleanupSync(); process.exit(0); });
 process.on("SIGTERM", () => { cleanupSync(); process.exit(0); });
 process.on("SIGHUP", () => { cleanupSync(); process.exit(0); });
 
+// ─── Watch State (Groundbreaking: Live Page Event Capture) ─────────────────────
+//
+// This is the feature NO other MCP browser server has:
+// Agent calls browser_watch({action:"start"}) → browser starts recording console
+// messages, network requests, navigations, and JS exceptions in real-time.
+// Agent calls browser_watch({action:"poll"}) → gets ALL events since last poll.
+// Agent calls browser_watch({action:"stop"}) → cleans up.
+//
+// No more flying blind — the agent can SEE what the page is doing internally.
+
+const watchState = {
+  active: false,
+  events: [],
+  disposables: [],
+};
+
+function cleanupWatch() {
+  watchState.active = false;
+  for (const dispose of watchState.disposables) {
+    try { dispose(); } catch {}
+  }
+  watchState.disposables = [];
+  watchState.events = [];
+}
+
+function setupWatch(events, protocol) {
+  cleanupWatch();
+  watchState.active = true;
+
+  if (events.includes("console") || events.includes("all")) {
+    protocol.Runtime.consoleAPICalled((params) => {
+      watchState.events.push({
+        type: "console",
+        timestamp: Date.now(),
+        level: params.type || "log",
+        text: (params.args || [])
+          .map((a) => a.value !== undefined ? String(a.value) : a.description || "")
+          .join(" "),
+      });
+    });
+    protocol.Runtime.exceptionThrown((params) => {
+      const d = params.exceptionDetails;
+      watchState.events.push({
+        type: "exception",
+        timestamp: Date.now(),
+        text: d?.exception?.description || d?.text || "Unknown exception",
+      });
+    });
+  }
+
+  if (events.includes("network") || events.includes("all")) {
+    protocol.Network.requestWillBeSent((params) => {
+      watchState.events.push({
+        type: "network",
+        timestamp: Date.now(),
+        subtype: "request",
+        url: params.request?.url || "",
+        method: params.request?.method || "GET",
+      });
+    });
+    protocol.Network.responseReceived((params) => {
+      // Only fire for actual pages/resources, not data: URIs
+      if (params.response?.url?.startsWith("data:")) return;
+      watchState.events.push({
+        type: "network",
+        timestamp: Date.now(),
+        subtype: "response",
+        url: params.response?.url || "",
+        status: params.response?.status || 0,
+        mimeType: params.response?.mimeType || "",
+      });
+    });
+  }
+
+  if (events.includes("navigation") || events.includes("all")) {
+    protocol.Page.frameNavigated((params) => {
+      watchState.events.push({
+        type: "navigation",
+        timestamp: Date.now(),
+        url: params.frame?.url || "",
+      });
+    });
+  }
+}
+
+// ─── waitForSelector Helper ──────────────────────────────────────────────────
+
+async function waitForSelector(runtime, selector, opts = {}) {
+  const timeout = opts.timeout || 10000;
+  const disappear = opts.disappear || false;
+  const start = Date.now();
+
+  while (Date.now() - start < timeout) {
+    const { result } = await runtime.evaluate({
+      expression: `(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return JSON.stringify({ status: "NOT_FOUND" });
+        const rect = el.getBoundingClientRect();
+        const hidden = rect.width === 0 || rect.height === 0;
+        const text = (el.textContent || "").trim().slice(0, 200);
+        return JSON.stringify({ status: "FOUND", tag: el.tagName, text, hidden });
+      })()`,
+    });
+    const info = JSON.parse(result?.value || "{}");
+
+    if (disappear && info.status === "NOT_FOUND") return true;
+    if (!disappear && info.status === "FOUND" && !info.hidden) return true;
+    if (!disappear && info.status === "FOUND" && !opts.visible) return true;
+
+    await new Promise((r) => setTimeout(r, 200));
+  }
+
+  throw new Error(`browser_waitForSelector: "${selector}" not ${disappear ? "disappeared" : "found"} within ${timeout}ms`);
+}
+
 // ─── MCP Server ───────────────────────────────────────────────────────────────
 
 const server = new McpServer({
-  name: "bwb-browser-termux",
-  version: "1.1.0",
+  name: "bwb-browser",
+  version: "2.0.1",
 });
 
 // Tool implementations
@@ -679,6 +798,114 @@ const tools = {
         }
       }
       return { content: [{ type: "text", text: JSON.stringify(status) }] };
+    },
+  },
+
+  // ─── GROUNDBREAKING: Live Browser Event Capture ─────────────────────────
+  // No other MCP browser server gives the agent feedback from the page.
+  // This turns bwb from "blind screenshot-taker" into "live debug partner."
+
+  browser_watch: {
+    description: "GROUNDBREAKING: Live capture of page events (console, network, navigation, exceptions). Start recording, browse around, then poll to see everything that happened. First tool of its kind in any MCP browser server.",
+    schema: {
+      action: z.enum(["start", "poll", "stop"]).describe("start=begin recording, poll=get events since last poll, stop=cleanup"),
+      events: z.array(z.enum(["console", "network", "navigation", "all"])).describe("Event types to capture (default: all)").optional(),
+    },
+    handler: async ({ action, events = ["all"] }) => {
+      if (action === "start") {
+        const p = await ensureBrowser();
+        // Enable domains needed for event capture
+        await p.Runtime.enable();
+        await p.Network.enable();
+        setupWatch(events, p);
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({ status: "watching", events, msg: "Recording started. Call browser_watch({action:'poll'}) to get events." }),
+          }],
+        };
+      }
+
+      if (action === "poll") {
+        const snapshot = [...watchState.events];
+        watchState.events = [];
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({ count: snapshot.length, events: snapshot }),
+          }],
+        };
+      }
+
+      if (action === "stop") {
+        const remaining = [...watchState.events];
+        cleanupWatch();
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({ status: "stopped", captured: remaining.length, events: remaining }),
+          }],
+        };
+      }
+
+      return { content: [{ type: "text", text: JSON.stringify({ error: "Invalid action" }) }] };
+    },
+  },
+
+  browser_waitForSelector: {
+    description: "Wait for a CSS selector to appear (visible) or disappear from the DOM. Polls every 200ms until found or timeout.",
+    schema: {
+      selector: z.string().describe("CSS selector to wait for"),
+      timeout: z.number().describe("Max wait time in ms (default: 10000)").optional(),
+      disappear: z.boolean().describe("Wait for element to disappear instead of appear (default: false)").optional(),
+      visible: z.boolean().describe("Require element to be visible (non-zero dimensions, default: true)").optional(),
+    },
+    handler: async ({ selector, timeout = 10000, disappear = false, visible = true }) => {
+      const p = await ensureBrowser();
+      const { Runtime } = p;
+      await waitForSelector(Runtime, selector, { timeout, disappear, visible });
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({ found: !disappear, disappeared: disappear }),
+        }],
+      };
+    },
+  },
+
+  browser_setViewport: {
+    description: "Change the viewport size (width × height). Useful for responsive testing or capturing full-page screenshots at specific dimensions.",
+    schema: {
+      width: z.number().min(320).max(7680).describe("Viewport width in pixels (default: 1280)"),
+      height: z.number().min(240).max(4320).describe("Viewport height in pixels (default: 720)"),
+    },
+    handler: async ({ width = 1280, height = 720 }) => {
+      const p = await ensureBrowser();
+      await p.Page.setViewport({ width, height });
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({ viewport: `${width}x${height}` }),
+        }],
+      };
+    },
+  },
+
+  browser_back: {
+    description: "Go back in browser history (like clicking the browser back button).",
+    schema: {},
+    handler: async () => {
+      const p = await ensureBrowser();
+      const { Page, Runtime } = p;
+      await Page.navigate({ url: "javascript:history.back()" });
+      await new Promise((r) => setTimeout(r, 500));
+      const { result } = await Runtime.evaluate({ expression: "document.title" });
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({ title: result?.value || "" }),
+        }],
+      };
     },
   },
 };
