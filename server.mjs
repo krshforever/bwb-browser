@@ -32,7 +32,7 @@ function parseArgs() {
       case "--port": cfg.port = parseInt(args[++i], 10); break;
       case "--user-data-dir": cfg.userDataDir = args[++i]; break;
       case "--headless": cfg.headless = args[++i] !== "false"; break;
-      case "--version": console.log("bwb-browser-termux 1.0.7"); process.exit(0);
+      case "--version": console.log("bwb-browser-termux 1.0.8"); process.exit(0);
       case "--help": printHelp(); process.exit(0);
     }
   }
@@ -153,58 +153,61 @@ async function ensureBrowser() {
   if (protocol) return protocol;
   if (browserStartup) return browserStartup;
 
-  const browserPath = await findBrowser();
-
-  browserStartup = new Promise((resolve, reject) => {
-    const args = [
-      "--headless",
-      "--no-sandbox",
-      "--disable-gpu",
-      "--disable-dev-shm-usage",
-      "--disable-setuid-sandbox",
-      "--disable-software-rasterizer",
-      "--remote-debugging-port=" + cfg.port,
-      "--user-data-dir=" + cfg.userDataDir,
-    ];
-
-    if (!cfg.headless) {
-      // Remove headless flag but keep CDP
-      args.shift();
-    }
-
-    browser = spawn(browserPath, args, {
-      stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, DISPLAY: process.env.DISPLAY || ":0" },
-    });
-
-    let resolved = false;
-    const timeout = setTimeout(() => {
-      if (!resolved) {
-        reject(new Error(`Browser startup timed out after 15s. Check: ${browserPath}`));
-      }
-    }, 15000);
-
-    const listener = (data) => {
-      const msg = data.toString();
-      if (msg.includes("DevTools listening on")) {
-        clearTimeout(timeout);
-        resolved = true;
-        CDP({ port: cfg.port })
-          .then((p) => { protocol = p; resolve(p); })
-          .catch(reject);
-      }
-    };
-
-    browser.stderr.on("data", listener);
-    browser.on("error", (err) => {
-      if (!resolved) {
-        clearTimeout(timeout);
-        reject(new Error(`Browser spawn failed: ${err.message}`));
-      }
-    });
-  });
-
+  let startResolve, startReject;
+  browserStartup = new Promise((res, rej) => { startResolve = res; startReject = rej; });
   browserStartup.catch(() => { browserStartup = null; });
+
+  (async () => {
+    try {
+      const browserPath = await findBrowser();
+      const args = [
+        "--headless",
+        "--no-sandbox",
+        "--disable-gpu",
+        "--disable-dev-shm-usage",
+        "--disable-setuid-sandbox",
+        "--disable-software-rasterizer",
+        "--remote-debugging-port=" + cfg.port,
+        "--user-data-dir=" + cfg.userDataDir,
+      ];
+
+      if (!cfg.headless) args.shift();
+
+      browser = spawn(browserPath, args, {
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env, DISPLAY: process.env.DISPLAY || ":0" },
+      });
+
+      let resolved = false;
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          startReject(new Error(`Browser startup timed out after 15s. Check: ${browserPath}`));
+        }
+      }, 15000);
+
+      const listener = (data) => {
+        const msg = data.toString();
+        if (msg.includes("DevTools listening on")) {
+          clearTimeout(timeout);
+          resolved = true;
+          CDP({ port: cfg.port })
+            .then((p) => { protocol = p; startResolve(p); })
+            .catch(startReject);
+        }
+      };
+
+      browser.stderr.on("data", listener);
+      browser.on("error", (err) => {
+        if (!resolved) {
+          clearTimeout(timeout);
+          startReject(new Error(`Browser spawn failed: ${err.message}`));
+        }
+      });
+    } catch (err) {
+      browserStartup = null;
+      startReject(err);
+    }
+  })();
 
   return browserStartup;
 }
@@ -227,7 +230,7 @@ process.on("SIGTERM", () => { cleanup(); process.exit(0); });
 
 const server = new McpServer({
   name: "bwb-browser-termux",
-  version: "1.0.7",
+  version: "1.0.8",
 });
 
 // Tool implementations
