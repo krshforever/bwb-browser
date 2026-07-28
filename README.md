@@ -1,73 +1,152 @@
-# 🔥 bwb-browser
+# bwb-browser
 
-### Browser Without Bloat — 30KB MCP Browser Automation Server
+**Browser Without Bloat** — 76KB. 25 tools. Zero dependencies. Runs on your phone.
 
-[![npm version](https://img.shields.io/npm/v/bwb-browser?color=blue&label=npm)](https://www.npmjs.com/package/bwb-browser)
-[![npm downloads](https://img.shields.io/npm/dm/bwb-browser?color=blue)](https://www.npmjs.com/package/bwb-browser)
-[![GitHub](https://img.shields.io/badge/github-krshforever/bwb--browser-8A2BE2)](https://github.com/krshforever/bwb-browser)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Size](https://img.shields.io/badge/size-30KB-brightgreen)]()
-
-**No Playwright. No Puppeteer. No 400MB downloads. Just raw Chrome DevTools Protocol.**
-
-bwb gives any AI agent (Claude Code, OpenCode, Cline, Antigravity, Cursor, Continue, etc.) the ability to browse the web, take screenshots, click elements, fill forms, execute JavaScript, and **watch live page events** — all in a **30KB** package.
-
-Created by [**Krish Tiwari**](https://github.com/krshforever) ([@krshforever](https://github.com/krshforever)).
+A lightweight MCP server that gives any AI agent browser superpowers. Written by a guy in India on Termux because the existing tools were 200MB of "why."
 
 ---
 
-## 🚀 The Breakthrough: Watch Your Pages Live
+## The Pitch (60 seconds)
 
-**bwb is the first and only MCP browser tool that captures live page events.**
+Every other MCP browser tool ships a full browser binary. Playwright MCP? ~250MB. Puppeteer MCP? ~400MB. Chrome DevTools MCP? ~350MB.
 
-```mermaid
-sequenceDiagram
-    Agent->>bwb: browser_watch({action:"start", events:["all"]})
-    bwb->>Page: 🎬 Recording console, network, errors...
-    Agent->>bwb: browser_goto({url:"https://example.com"})
-    bwb->>Page: Navigate, interact...
-    Page-->>bwb: ⚡ Console.log, Network request, JS Error
-    Agent->>bwb: browser_watch({action:"poll"})
-    bwb-->>Agent: [{console:"React mounted"}, {network:"GET /api/data 200"}, ...]
-    Agent->>bwb: browser_watch({action:"stop"})
-    bwb-->>Agent: ✅ Recording stopped, 47 events captured
+bwb uses **raw Chrome DevTools Protocol (CDP)** — the same protocol Chrome speaks natively. It auto-detects the browser already on your system. No downloads. No binary mismatches. No "why is my disk full" panic.
+
+| Factor | bwb | Playwright MCP | Puppeteer MCP |
+|--------|-----|----------------|---------------|
+| Source size | **76KB** | ~50MB+ | ~100MB+ |
+| Total install | **~1MB** | ~250MB | ~400MB |
+| Bundled browser | **None** | Chromium (~200MB) | Chromium (~300MB) |
+| Works on Termux/Android | **✅ Yes** | ❌ | ❌ |
+| Zero deps (no node_modules hell) | **✅ Yes** | ❌ | ❌ |
+| Live event streaming | **✅** | ❌ | ❌ |
+| Natural language interaction | **✅** | ❌ | ❌ |
+| Persistent sessions | **✅** | ❌ | ❌ |
+| CPU profile at idle | Basically nothing | 🐌 | 🐌 |
+
+---
+
+## 🔥 The Features That Actually Matter
+
+### 1. `browser_act` — Talk to the Browser Like a Human
+
+```javascript
+browser_act({instruction: "search for laptops under a thousand dollars"})
 ```
 
-No other MCP browser tool does this. Playwright MCP, Chrome DevTools MCP, Puppeteer MCP — all are fire-and-forget. bwb is the **black box recorder** for browser automation.
+No `findElement` hell. No chaining 10 calls. bwb parses what you want, finds the right elements, interacts, and returns the result. Pure DOM heuristics — no LLM dependency, no API costs, no "the AI is thinking..." spinner.
 
-Your agent can now:
-- **Debug SPAs** — see React/Vue/Angular errors in real-time
-- **Track API calls** — every network request, response, and status code
-- **Detect loading states** — know when the page is actually done rendering
-- **Intercept console output** — catch warnings, logs, and errors as they happen
+### 2. `browser_watch` — See What the Page Is Doing
+
+This is the one feature nobody else has. Your agent can **listen** to the page:
+
+```javascript
+browser_watch({action: "start", events: ["console", "network"]})
+// ... do stuff ...
+const events = browser_watch({action: "poll"})
+// → [{type: "console", text: "React mounted"}, {type: "network", url: "https://api.example.com/data", status: 200}]
+```
+
+Console logs. Network requests. JS exceptions. Page navigations. Your agent isn't flying blind anymore.
+
+### 3. "Login Once, Agent Works for Days"
+
+```javascript
+// Monday: Login
+browser_saveCookies({name: "gmail"})
+
+// Wednesday: Still logged in. Fresh browser. Zero fuss.
+browser_loadCookies({name: "gmail"})
+browser_goto({url: "https://gmail.com"})  // Already authenticated
+```
+
+Sessions persist across agent restarts, server restarts, even across different machines.
+
+### 4. `browser_diagnose` — Lighthouse for Your AI Agent
+
+One call gets you: performance metrics, console errors, broken images, meta tags, interaction count, and a health score. Your agent can self-diagnose instead of guessing.
+
+### 5. Multi-Tab & Sessions
+
+Create tabs, close them, switch between them, save cookies, load them back. Like a real browser. Because it is one.
+
+### 6. Realistic Browser Profile
+
+Normalizes `navigator.webdriver`, plugins, languages, and user-agent for testing environments. Not "stealth mode" — just honest fingerprint normalization so your tests actually match real user conditions.
 
 ---
 
-## 📦 Why bwb?
-
-| Feature | bwb | Playwright MCP | Puppeteer MCP | Chrome DevTools MCP |
-|---------|-----|----------------|---------------|-------------------|
-| **Size** | **30 KB** | 200+ MB | 400+ MB | 300+ MB |
-| **Dependencies** | **3 tiny** | 50+ | 30+ | 50+ |
-| **Termux/Android** | ✅ **Native** | ❌ | ❌ | ❌ |
-| **Works on any platform** | ✅ Linux, macOS, Windows, CI | ⚠️ Needs browsers | ⚠️ Needs Chromium | ⚠️ Needs Puppeteer |
-| **Uses your existing Chrome** | ✅ Auto-detects | ❌ Downloads its own | ❌ Downloads its own | ❌ Downloads its own |
-| **Live page events** | ✅ **`browser_watch`** | ❌ | ❌ | ❌ |
-| **Setup time** | **5 seconds** | 5+ minutes | 5+ minutes | 5+ minutes |
-
-**bwb is 13,000x smaller than Puppeteer MCP.**
-
----
-
-## ⚡ Quick Install
+## Quick Install
 
 ```bash
 npm install -g bwb-browser
+bwb --version
+# → bwb-browser 3.0.0
 ```
 
-That's it. **5 seconds.** You're done.
+Done. If you have Chrome/Chromium anywhere on your system, bwb finds it. No config files. No environment variables. Just works.
 
-Then add to your AI agent's MCP config:
+**On Termux/Android:**
+```bash
+pkg install chromium      # One-time
+npm install -g bwb-browser
+bwb
+```
+
+*Yes, this runs on a phone. Yes, it's fully functional. Yes, I built it this way on purpose.*
+
+---
+
+## All 25 Tools
+
+| Tool | Description |
+|------|-------------|
+| **`browser_act`** | 🔥 Natural language — "search for X", "click the button", "what's on this page" |
+| **`browser_watch`** | 🔥 Live event capture — console, network, errors, navigation |
+| **`browser_diagnose`** | 🔥 Full page health check — perf, errors, broken images, score |
+| **`browser_fingerprint`** | 🔥 Realistic browser profile for testing |
+| `browser_goto` | Navigate to a URL |
+| `browser_screenshot` | Take a screenshot |
+| `browser_html` | Get page/selector HTML |
+| `browser_text` | Get page/selector text |
+| `browser_title` | Get page title |
+| `browser_url` | Get current URL |
+| `browser_back` | Go back in history |
+| `browser_click` | Click an element (native CDP) |
+| `browser_fill` | Fill an input field (native CDP) |
+| `browser_elements` | List interactive elements |
+| `browser_eval` | Execute JavaScript |
+| `browser_setViewport` | Change viewport size |
+| `browser_waitForSelector` | Wait for element to appear/disappear |
+| `browser_newTab` | Create new tab |
+| `browser_closeTab` | Close a tab |
+| `browser_switchTab` | Switch to a tab |
+| `browser_listTabs` | List all tabs |
+| `browser_saveCookies` | Save session to disk |
+| `browser_loadCookies` | Load session from disk |
+| `browser_listSessions` | List saved sessions |
+| `browser_status` | Browser connection info |
+| `browser_restart` | Restart the browser |
+
+---
+
+## Where It Runs
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| Termux/Android | ✅ **Verified** | `pkg install chromium`, that's it |
+| Linux | ✅ **Verified** | Auto-detects Chrome/Chromium |
+| macOS | ✅ **Verified** | Auto-detects Chrome.app |
+| Windows | ✅ **Verified** | Auto-detects Chrome.exe |
+| CI (GitHub Actions) | ✅ **Verified** | Uses system Chrome |
+| Docker | ✅ **Verified** | Just need Chrome in container |
+| Your Raspberry Pi | ✅ Why not | Same npm install |
+
+---
+
+## MCP Agent Integration
+
+Add this to any MCP-compatible agent's config:
 
 ```json
 {
@@ -79,210 +158,43 @@ Then add to your AI agent's MCP config:
 }
 ```
 
-> 💡 **For AI Agents:** See [AGENTS.md](AGENTS.md) for the complete copy-paste prompt that auto-installs and configures bwb on Claude Code, OpenCode, Antigravity, Cline, Cursor, Continue.dev, Aider, Codex CLI, Cody, Windsurf, and any MCP-compatible agent.
+Works with: **Claude Code, OpenCode, Antigravity CLI, Cline, Continue.dev, Aider, Codex CLI, Cody, Windsurf, Cursor** — literally anything that speaks MCP.
+
+See [AGENTS.md](./AGENTS.md) for copy-paste configs for each one.
 
 ---
 
-## 🔥 15 Tools
+## The Backstory
 
-| Tool | Description | Groundbreaking? |
-|------|-------------|:---:|
-| `browser_goto` | Navigate to a URL | |
-| `browser_screenshot` | Take a screenshot (saves to disk + returns base64) | |
-| `browser_html` | Get page/selector HTML | |
-| `browser_text` | Get page/selector visible text | |
-| `browser_click` | Click an element (native CDP mouse events) | |
-| `browser_fill` | Fill an input field (native CDP keyboard events) | |
-| `browser_elements` | List links, buttons, inputs, headings | |
-| `browser_title` | Get page title | |
-| `browser_url` | Get current URL | |
-| `browser_eval` | Execute JavaScript (with exception capture) | |
-| `browser_status` | Browser connection status | |
-| **`browser_watch`** | 🔥 **Live console, network, error, navigation capture** | **✅ YES** |
-| `browser_waitForSelector` | Wait for element to appear/disappear | |
-| `browser_setViewport` | Change viewport size (responsive testing) | |
-| `browser_back` | Go back in browser history | |
+I built this because I was tired of every browser automation tool assuming you have 400MB to spare and a desktop-class machine. I work from my phone sometimes. Termux exists. Why shouldn't browser automation work there too?
+
+So I did what any reasonable person would do: I ignored all the existing solutions and wrote my own, using nothing but raw CDP — the protocol Chrome speaks natively. No wrappers. No abstractions. Just JSON messages over WebSocket.
+
+The result is 76KB of source code that does what 400MB of dependencies do. It's not _better_ code — it's _less_ code. And sometimes less is all you need.
+
+*— Krish Tiwari ([@krshforever](https://github.com/krshforever)), somewhere on an Indian train, writing code on a phone*
 
 ---
 
-## 🎯 Live Demo (Real Results from Termux/Android)
+## Roadmap
 
-```
-╔══════════════════════════════════════════════════════════╗
-║        bwb-browser  —  LIVE DEMO                       ║
-║  30KB · 15 tools · raw CDP · zero bloat · on Termux    ║
-╚════════════════════════════════════════════════════════╝
-
-  Step 1: Hacker News scraping                     ✅  1.7s
-    → #1: 7.1 Earthquake in Japan
-    → #2: About the security content of macOS Tahoe 26.6
-    → #3: What Even Are Microservices?
-
-  Step 2: GitHub Trending exploration              ✅  5.1s
-    → pascalorg/editor, jenkinsci/jenkins, moeru-ai/airi
-
-  Step 3: Google search fill + submit              ✅  4.0s
-    → Filled "bwb browser automation termux", submitted
-
-  Step 4: Wikipedia article extraction             ✅  3.2s
-    → "A headless browser is a web browser without a GUI..."
-
-  Step 5: Rapid-fire 5 sites in 24s                ✅ 24.1s
-    → example.com: 744ms | httpbin.org/ip: 1635ms
-    → github.com: 5146ms | wikipedia.org: 15.3s
-    → news.ycombinator.com: 1231ms
-
-  Step 6: System status                            ✅  0.1s
-    → Connected: true · Chrome PID: 15409
-
-═══════════════════════════════════════════════════════════
-  Total: 44.9s · 6 steps · 7 screenshots
-═══════════════════════════════════════════════════════════
-```
+- **bwb Cloud** — hosted browser instances so your agent has a browser even when your laptop's asleep
+- **`browser_act` v2** — multi-step with feedback loops (not just "search for X" but "research this topic and summarize")
+- **Recording & Replay** — record sessions, replay them, debug them
+- **Browser pool** — multiple isolated instances for CI parallelization
 
 ---
 
-## 🛠 Prerequisites
+## Support
 
-Just **Chrome** or **Chromium** installed anywhere on your system. bwb auto-detects it.
+If bwb saves you time, money, or a few brain cells:
 
-| Platform | Install |
-|----------|---------|
-| **Termux/Android** | `pkg install chromium` |
-| **Linux (Debian/Ubuntu)** | `sudo apt install chromium-browser` |
-| **macOS** | `brew install --cask google-chrome` |
-| **Windows** | Download from [google.com/chrome](https://www.google.com/chrome/) |
-| **CI/Docker** | `apt-get install -y chromium` |
+- [GitHub Sponsors](https://github.com/sponsors/krshforever)
+
+No gating. No "pro" tier. No bait-and-switch. The code is MIT forever. If you can't or won't pay, that's genuinely fine — I built this because I wanted it to exist.
 
 ---
 
-## 📋 Configuration
+## License
 
-| CLI flag | Env var | Default | Description |
-|----------|---------|---------|-------------|
-| `--browser-path` | `BWB_CHROME_PATH` | auto-detected | Path to Chrome/Chromium binary |
-| `--port` | `BWB_CDP_PORT` | `0` (random free port) | Remote debugging port |
-| `--user-data-dir` | `BWB_USER_DATA_DIR` | `~/.cache/bwb-browser` | Browser profile directory |
-| `--headless` | `BWB_HEADLESS` | `true` | Run headless (`true`/`false`) |
-| `--screenshots-dir` | `BWB_SCREENSHOTS_DIR` | `~/bwb-screenshots/` | Screenshot save location |
-| `--timeout` | `BWB_NAV_TIMEOUT` | `30000` | Navigation timeout in ms |
-
-**Note:** On Android/Termux, screenshots default to `/storage/emulated/0/Download/bwb-screenshots/` so they're accessible from any file manager or gallery app.
-
----
-
-## 🤖 Compatible AI Agents
-
-bwb works with **every major AI coding agent** via MCP:
-
-| Agent | Config File |
-|-------|------------|
-| **Claude Code** | `~/.claude/settings.json` |
-| **OpenCode** | `~/.config/opencode/opencode.json` |
-| **Antigravity CLI** | `~/.gemini/antigravity-cli/mcp_config.json` |
-| **Cline** (VS Code) | `~/.cline/mcp.json` |
-| **Continue.dev** | `~/.continue/config.json` |
-| **Cursor** | `.cursor/mcp.json` |
-| **Aider** | Custom tool integration |
-| **Codex CLI** | `~/.codex/mcp.json` |
-| **Cody** (Sourcegraph) | MCP config |
-| **Windsurf** | MCP config |
-
-> 🎯 **Give this to any AI agent to auto-install bwb:** See the copy-paste prompt in [AGENTS.md](AGENTS.md)
-
----
-
-## 🔥 Using `browser_watch` (The Game Changer)
-
-### Start watching:
-```
-browser_watch({action: "start", events: ["all"]})
-```
-
-### Browse around:
-```
-browser_goto({url: "https://example.com"})
-browser_click({selector: "button"})
-```
-
-### See everything that happened:
-```
-browser_watch({action: "poll"})
-# → [{console: "App initialized"}, {network: "GET /api/data 200"}, ...]
-```
-
-### Stop recording:
-```
-browser_watch({action: "stop"})
-```
-
-The agent gets **structured event data** — not just screenshots. It can SEE what the page is doing internally.
-
----
-
-## 🌍 Platform Support
-
-| Platform | Status | Notes |
-|----------|--------|-------|
-| **Termux/Android** | ✅ **Verified** | Native, no containers. Chromium via `pkg`. |
-| **Linux** | ✅ | Works with any Chrome/Chromium |
-| **macOS** | ✅ | Google Chrome auto-detected |
-| **Windows** | ✅ | Chrome auto-detected |
-| **CI/CD (GitHub Actions)** | ✅ | Use `chromium-browser` |
-| **Docker** | ✅ | Install chromium in container |
-
----
-
-## 📦 What's in the Box?
-
-```
-bwb-browser              (37KB unpacked)
-├── server.mjs            MCP server — 15 tools, CDP integration
-├── bin/bwb               CLI entry point
-├── AGENTS.md             Agent integration guide + copy-paste prompt
-├── BENCHMARKS.md         Competitive comparison data
-├── LICENSE               MIT
-└── README.md             This file
-```
-
-**Zero bloat. No AI framework. No bundled browser. Just the bridge between your agent and Chrome.**
-
----
-
-## 🆚 Comparison: bwb vs The World
-
-| Metric | bwb | Playwright MCP | Puppeteer MCP | Chrome DevTools MCP |
-|--------|-----|----------------|---------------|-------------------|
-| Unpacked size | **30 KB** | ~200 MB | ~400 MB | ~300 MB |
-| npm install size | **~2 MB** | ~500 MB | ~400 MB | ~300 MB |
-| Install time | **5 seconds** | 5+ minutes | 5+ minutes | 5+ minutes |
-| Dependencies | **3 packages** | 50+ packages | 30+ packages | 50+ packages |
-| Live event capture | ✅ **`browser_watch`** | ❌ | ❌ | ❌ |
-| Termux/Android | ✅ **Native** | ❌ | ❌ | ❌ |
-| Uses existing Chrome | ✅ Auto-detect | ❌ Downloads its own | ❌ Downloads its own | ❌ Downloads its own |
-| Dark mode | ✅ MIT | ✅ Apache 2.0 | ✅ Apache 2.0 | ✅ Apache 2.0 |
-
----
-
-## 🔜 Roadmap
-
-- **v2.0.x** — Current: 15 tools, `browser_watch`, stable
-- **v2.1** — Stealth mode (bot detection bypass via CDP script injection)
-- **v2.2** — Cookie/session management (`browser_getCookies`, `browser_setCookie`)
-- **v3.0** — Parallel tab management, persistent sessions, network interception
-- **bwb Cloud** — Managed browser instances, pay-per-use (coming 2027)
-
----
-
-## 📄 License
-
-MIT © [Krish Tiwari](https://github.com/krshforever) ([@krshforever](https://github.com/krshforever))
-
----
-
-<p align="center">
-  <b>30KB. Raw CDP. Zero Bloat. Any Agent. Any Platform.</b><br>
-  <a href="https://github.com/krshforever/bwb-browser">GitHub</a> ·
-  <a href="https://www.npmjs.com/package/bwb-browser">npm</a> ·
-  <a href="AGENTS.md">Agent Guide</a>
-</p>
+MIT — Krish Tiwari ([@krshforever](https://github.com/krshforever))

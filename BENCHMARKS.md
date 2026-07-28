@@ -1,4 +1,4 @@
-# bwb-browser-termux — Competitive Benchmarks
+# bwb-browser — Competitive Benchmarks
 
 > **bwb**: 30KB, 11 tools, raw CDP, Zero heavy deps
 > Last updated: 2026-07-28
@@ -7,7 +7,7 @@
 
 | Tool | Package Size | Dependencies | Browser Engine | Termux? | Setup Time |
 |------|-------------|-------------|----------------|---------|-----------|
-| **bwb-browser-termux** | **30 KB** | **3** (tiny) | Raw CDP | ✅ Native | **5 seconds** |
+| **bwb-browser** | **30 KB** | **3** (tiny) | Raw CDP | ✅ Native | **5 seconds** |
 | cdpilot | 488 KB | 0 | Raw CDP | ⚠️ Not tested | 5 seconds |
 | Playwright MCP | 200+ MB | 30+ | Playwright | ❌ | 5+ minutes |
 | Chrome DevTools MCP | 300+ MB | 50+ | Puppeteer | ❌ | 5+ minutes |
@@ -21,7 +21,7 @@
 
 ```
 ╔══════════════════════════════════════════════════════════╗
-║        bwb-browser-termux  —  LIVE DEMO               ║
+║        bwb-browser  —  LIVE DEMO                     ║
 ║  30KB · 11 tools · raw CDP · zero bloat · on Termux   ║
 ╚════════════════════════════════════════════════════════╝
 
@@ -76,7 +76,7 @@ Every other browser MCP requires either:
 
 ### 3. Production-Ready in One Command
 ```bash
-npm install -g bwb-browser-termux
+npm install -g bwb-browser
 # Then add one line to opencode.json
 ```
 
@@ -95,7 +95,7 @@ No Playwright, no Puppeteer, no Selenium — just the Chrome DevTools Protocol v
 ## When to NOT Use bwb
 
 - You need multi-browser testing (Firefox, WebKit) → use Playwright MCP
-- You need pixel-perfect stealth/anti-bot → use Stealth Browser MCP or cdpilot
+- You need pixel-perfect evasion → use Stealth Browser MCP or cdpilot
 - You need complex network interception → add a layer yourself (raw CDP is available)
 - You're on desktop and want more tools → Playwright MCP has 21 tools
 
@@ -111,6 +111,6 @@ No Playwright, no Puppeteer, no Selenium — just the Chrome DevTools Protocol v
 ## Roadmap to v2.0 (Monetization Path)
 
 1. **v1.x** (current) — Free, open-source, MIT. Core 11 tools, Termux-native.
-2. **v2.0 Beta** — Free. Add: accessibility tree, stealth mode, proxy rotation.
+2. **v2.0 Beta** — Free. Add: accessibility tree, realistic browser fingerprint, proxy rotation.
 3. **v2.0 Pro** — Paid license. Add: parallel tabs, persistent sessions, network interception, CAPTCHA handling, enterprise auth.
 4. **bwb Cloud** — Managed browser instances. Pay-per-use. No infrastructure to manage.

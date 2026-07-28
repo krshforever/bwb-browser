@@ -1,12 +1,13 @@
 {
   "name": "bwb-browser",
-  "version": "2.0.4",
-  "description": "Browser Without Bloat — 30KB MCP browser automation server. Raw CDP, zero bloat, works on any platform.",
+  "version": "3.0.0",
+  "description": "Browser Without Bloat — 76KB MCP server that gives AI agents browser superpowers. Natural language interaction, live event watching, persistent sessions, multi-tab. Runs on Termux/Android, desktop, and CI. Zero heavy dependencies.",
   "bin": {
     "bwb": "bin/bwb"
   },
   "files": [
     "server.mjs",
+    "lib/",
     "bin/bwb",
     "AGENTS.md",
     "LICENSE",
@@ -14,7 +15,7 @@
   ],
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --check server.mjs"
+    "test": "node --check server.mjs && node --check lib/*.mjs"
   },
   "keywords": [
     "mcp",
@@ -26,7 +27,24 @@
     "headless",
     "bwb",
     "browser-without-bloat",
-    "ai-agent"
+    "ai-agent",
+    "termux",
+    "android",
+    "natural-language",
+    "llm",
+    "ai-tools",
+    "claude",
+    "opencode",
+    "agent",
+    "web-scraping",
+    "browser-testing",
+    "e2e-testing",
+    "fingerprint",
+    "session",
+    "lightweight",
+    "zero-dependencies",
+    "mobile",
+    "devtools"
   ],
   "author": "Krish Tiwari (@krshforever)",
   "license": "MIT",

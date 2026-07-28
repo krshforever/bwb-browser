@@ -1,14 +1,16 @@
 # bwb-browser — Agent Integration Guide
 
 > **Author:** Krish Tiwari ([@krshforever](https://github.com/krshforever))
-> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · 30KB · 15 tools
+> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · 76KB source · 25 tools
 > **Last updated:** 2026-07-28
 
 ## What is bwb?
 
-**Browser Without Bloat** — a lightweight MCP (Model Context Protocol) server that gives any AI agent the ability to browse the web, take screenshots, click elements, fill forms, execute JavaScript, and **watch live page events** (console, network, navigation, exceptions).
+**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. 76KB. 25 tools. Zero heavy dependencies.
 
-Unlike Playwright MCP (200MB+), Puppeteer MCP (400MB+), or Chrome DevTools MCP (300MB+), bwb is **30KB** with **zero heavy dependencies** — just raw CDP. Works on Termux/Android, Linux, macOS, Windows, and CI.
+While other MCP browser tools ship a full browser binary (Playwright MCP = ~250MB, Puppeteer MCP = ~400MB), bwb uses **raw Chrome DevTools Protocol (CDP)** — the protocol Chrome speaks natively. It auto-detects the browser already on your system.
+
+Built on Termux/Android. Runs everywhere. Weighs nothing. **Browser automation from your phone.**
 
 ---
 
@@ -38,7 +40,7 @@ npm install -g bwb-browser
 
 # 2. Verify it works
 bwb --version
-# → bwb-browser 2.0.0
+# → bwb-browser 3.0.0
 
 # 3. Add to your AI agent's MCP config
 ```
@@ -50,13 +52,19 @@ bwb --version
 Give this to any AI agent (Claude, OpenCode, Gemini, etc.) to auto-install and configure bwb:
 
 ```
-I want you to install and use bwb-browser — a 30KB MCP browser automation server.
+I want you to install and use bwb-browser — a 76KB MCP browser automation server with 25 tools.
 
 bwb is Browser Without Bloat. It uses raw Chrome DevTools Protocol (no Playwright, no Puppeteer).
-It has 15 tools including the groundbreaking `browser_watch` tool — the first MCP browser tool
-that captures live console messages, network requests, JS exceptions, and page navigations.
+It has 25 tools including:
 
-Created by Krish Tiwari (@krshforever). npm package: bwb-browser
+- `browser_act` — natural language interaction ("search for X", "click the button", "what's on this page")
+- `browser_watch` — live capture of console messages, network requests, JS exceptions, page navigations
+- `browser_diagnose` — full page health check (perf, errors, broken images, score)
+- `browser_fingerprint` — realistic browser profile for testing
+- Multi-tab management (create, close, switch, list)
+- Session persistence (save/load cookies across restarts)
+
+Created by Krish Tiwari (@krshforever) from a phone on a train in India. npm: bwb-browser
 
 ## Auto-Install Steps:
 
@@ -142,6 +150,10 @@ internally — not just what it looks like.
 
 | Tool | Description |
 |------|-------------|
+| **`browser_act`** | 🔥 Natural language interaction — "search for X", "click the button", "what's on this page" |
+| **`browser_watch`** | 🔥 Live event capture — console, network, errors, navigation |
+| **`browser_diagnose`** | 🔥 Full page health check — perf, errors, broken images, score |
+| **`browser_fingerprint`** | 🔥 Realistic browser profile for testing |
 | `browser_goto` | Navigate to a URL |
 | `browser_screenshot` | Take a screenshot (saves to disk + returns base64) |
 | `browser_html` | Get page/selector HTML |
@@ -151,12 +163,19 @@ internally — not just what it looks like.
 | `browser_elements` | List interactive elements by kind |
 | `browser_title` | Get page title |
 | `browser_url` | Get current URL |
-| `browser_eval` | Execute JavaScript (with exception capture) |
-| `browser_status` | Browser connection status |
-| `browser_watch` | 🔥 GROUNDBREAKING: Live event capture |
-| `browser_waitForSelector` | Wait for element to appear/disappear |
-| `browser_setViewport` | Change viewport size |
 | `browser_back` | Go back in history |
+| `browser_eval` | Execute JavaScript (with exception capture) |
+| `browser_setViewport` | Change viewport size |
+| `browser_waitForSelector` | Wait for element to appear/disappear |
+| `browser_newTab` | Create new tab |
+| `browser_closeTab` | Close a tab |
+| `browser_switchTab` | Switch to a tab |
+| `browser_listTabs` | List all tabs |
+| `browser_saveCookies` | Save session to disk |
+| `browser_loadCookies` | Load session from disk |
+| `browser_listSessions` | List saved sessions |
+| `browser_status` | Browser connection status |
+| `browser_restart` | Restart the browser |
 
 ## Security Notes
 
