@@ -18,8 +18,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import CDP from "chrome-remote-interface";
-import { mkdirSync } from "fs";
-import { homedir } from "os";
+import { mkdirSync, existsSync } from "fs";
+import { homedir, platform } from "os";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -162,7 +162,14 @@ Object.assign(cfg, parseArgs());
 cfg.port = cfg.port || parseInt(process.env.BWB_CDP_PORT || "0", 10);
 cfg.headless = cfg.headless !== undefined ? cfg.headless : (process.env.BWB_HEADLESS !== "false");
 cfg.userDataDir = cfg.userDataDir || process.env.BWB_USER_DATA_DIR || join(homedir(), ".cache", "bwb-browser");
-cfg.screenshotsDir = cfg.screenshotsDir || process.env.BWB_SCREENSHOTS_DIR || "/storage/emulated/0/Download/bwb-screenshots";
+cfg.screenshotsDir = cfg.screenshotsDir || process.env.BWB_SCREENSHOTS_DIR || (() => {
+  // Auto-detect: Termux/Android path if available, else ~/bwb-screenshots/
+  const androidPath = "/storage/emulated/0/Download/bwb-screenshots";
+  if (platform() === "android" && existsSync("/storage/emulated/0/Download")) return androidPath;
+  if (process.env.HOME?.includes("com.termux")) return androidPath;
+  if (process.env.TERMUX_VERSION) return androidPath;
+  return join(homedir(), "bwb-screenshots");
+})();
 cfg.navTimeout = cfg.navTimeout || parseInt(process.env.BWB_NAV_TIMEOUT || "30000", 10);
 
 try { mkdirSync(cfg.screenshotsDir, { recursive: true }); } catch {}
@@ -305,8 +312,8 @@ const tools = {
     schema: {},
     handler: async () => {
       const { Page, Runtime } = await getActiveProtocol();
-      await Page.navigate({ url: "javascript:history.back()" });
-      await new Promise(r => setTimeout(r, 500));
+      await Page.goBack();
+      await new Promise(r => setTimeout(r, Math.min(cfg.navTimeout, 1000)));
       const { result } = await Runtime.evaluate({ expression: "document.title" });
       syncActiveTab(result?.value, undefined);
       return { content: [{ type: "text", text: JSON.stringify({ title: result?.value || "" }) }] };
