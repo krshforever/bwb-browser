@@ -14,21 +14,33 @@ Built on Termux/Android. Runs everywhere. Weighs nothing. **Browser automation f
 
 ---
 
+## 🔥 Zero-Config Install (5 seconds)
+
+Don't copy-paste configs. Don't hunt for the right path. Just:
+
+```bash
+npm install -g bwb-browser
+bwb --setup
+```
+
+That's it. `bwb --setup` auto-detects every AI agent on your machine (OpenCode, Antigravity, Claude Code, Hermes, Cline, Continue, Codex CLI), writes the correct MCP config for each, detects Chrome/Chromium, and prints a summary. Close and reopen your agent — tools are ready.
+
+---
+
 ## Compatible Agents
 
-| Agent | Integration | Verified |
-|-------|-----------|----------|
-| **Claude Code** (Anthropic) | MCP config → `~/.claude/settings.json` | ✅ |
-| **OpenCode** | MCP config → `~/.config/opencode/opencode.json` | ✅ |
-| **Antigravity CLI** | MCP config → `~/.gemini/antigravity-cli/mcp_config.json` | ✅ |
-| **Cline** (VS Code) | MCP config → VS Code settings or `~/.cline/mcp.json` | ✅ |
-| **Continue.dev** | MCP config → `~/.continue/config.json` | ✅ |
-| **Aider** | Custom tool integration | ✅ |
-| **Codex CLI** | MCP config → `~/.codex/mcp.json` | ✅ |
-| **Cody** (Sourcegraph) | MCP config | ✅ |
-| **Windsurf** | MCP config | ✅ |
-| **Cursor** | MCP config → `.cursor/mcp.json` | ✅ |
-| **Any MCP-compatible agent** | MCP stdio transport | ✅ |
+| Agent | Auto-Config via `bwb --setup` | Manual Config |
+|-------|------------------------------|---------------|
+| **Claude Code** (Anthropic) | ✅ `~/.claude/settings.json` | MCP config |
+| **OpenCode** | ✅ `~/.config/opencode/opencode.json` | MCP config |
+| **Antigravity CLI** | ✅ `~/.gemini/config/mcp_config.json` | MCP config |
+| **Cline** (VS Code) | ✅ `~/.cline/mcp.json` | MCP config |
+| **Continue.dev** | ✅ `~/.continue/config.json` | MCP config |
+| **Codex CLI** | ✅ `~/.codex/mcp.json` | MCP config |
+| **Hermes** | ✅ `~/.hermes/mcp.json` | MCP config |
+| **Aider** | ❌ (custom tool) | Custom integration |
+| **Cody** (Sourcegraph) | ❌ | MCP config |
+| **Cursor** | ❌ (per-project) | `.cursor/mcp.json` |
 
 ---
 
@@ -40,7 +52,7 @@ npm install -g bwb-browser
 
 # 2. Verify it works
 bwb --version
-# → bwb-browser 3.0.0
+# → bwb-browser 3.1.1
 
 # 3. Add to your AI agent's MCP config
 ```

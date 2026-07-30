@@ -81,7 +81,7 @@ Normalizes `navigator.webdriver`, plugins, languages, and user-agent for testing
 ```bash
 npm install -g bwb-browser
 bwb --version
-# → bwb-browser 3.0.0
+# → bwb-browser 3.1.1
 ```
 
 Done. If you have Chrome/Chromium anywhere on your system, bwb finds it. No config files. No environment variables. Just works.

@@ -1,6 +1,6 @@
 {
   "name": "bwb-browser",
-  "version": "3.0.0",
+  "version": "3.1.1",
   "description": "Browser Without Bloat — 76KB MCP server that gives AI agents browser superpowers. Natural language interaction, live event watching, persistent sessions, multi-tab. Runs on Termux/Android, desktop, and CI. Zero heavy dependencies.",
   "bin": {
     "bwb": "bin/bwb"

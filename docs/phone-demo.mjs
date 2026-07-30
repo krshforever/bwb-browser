@@ -7,17 +7,15 @@
  * Run it to see bwb in action:
  *
  *   node docs/phone-demo.mjs
- *
- * What it demonstrates:
- *   1. browser_act — natural language interaction ("search for X")
- *   2. Session persistence — save/load cookies across runs
- *   3. Multi-tab — open multiple pages simultaneously
- *   4. Stealth mode — anti-detection
- *   5. Diagnose — page health check
- *   6. browser_watch — live event capture
- *
- * This is designed to produce output suitable for a demo video/screen recording.
  */
+
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const { version: BWB_VERSION } = JSON.parse(
+  readFileSync(join(__dirname, "..", "package.json"), "utf8")
+);
 
 const TRANSPORT = process.argv.includes("--stdio") ? "stdio" : "inline";
 
@@ -57,7 +55,7 @@ async function main() {
     args: [serverPath],
   });
 
-  const client = new Client({ name: "bwb-demo", version: "3.0.0" });
+  const client = new Client({ name: "bwb-demo", version: BWB_VERSION });
   await client.connect(transport);
 
   const call = (tool, args = {}) =>

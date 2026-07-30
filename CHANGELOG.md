@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.1.1 (2026-07-29)
+- Fix: version now reads dynamically from package.json — no more hardcoded version drift
+- `--version` and `--help` always show the real version
+
+## 3.1.0 (2026-07-29) — "One Command to Rule Them All"
+
+> *"npm install -g bwb-browser && bwb --setup. That's it. That's the tweet."*
+>
+> From now on, no agent gets stuck configuring bwb. Zero CLI battles. Five seconds to browser superpowers.
+
+### Added
+- **`bwb --setup`** — one-command auto-configuration. Detects every AI agent on your machine (OpenCode, Antigravity, Claude Code, Hermes, Cline, Continue.dev, Codex CLI), writes the correct MCP config, verifies Chrome/Chromium. Run once, done.
+- `lib/setup.mjs` — modular setup engine with per-agent config detection, JSON backup, and safe write
+
+### Changed
+- AGENTS.md overhauled: "Zero-Config Install (5 seconds)" replaces old manual copy-paste instructions
+- `server.mjs` now handles `--setup` flag before starting MCP server
+
+### Quality
+- Manual test: `bwb --setup` detected 4 installed agents, configured 1 new, skipped 4 not-found
+- All existing 62 tests pass
+
 ## 3.0.0 (2026-07-28) — "Browser Without Bloat"
 
 > *"Hey, let's run this on a phone." — Krish, probably*

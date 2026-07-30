@@ -18,7 +18,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import CDP from "chrome-remote-interface";
-import { mkdirSync } from "fs";
+import { mkdirSync, readFileSync } from "fs";
 import { homedir } from "os";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -27,6 +27,13 @@ import {
   ensureBrowser, restartBrowser, saveScreenshot,
   cfg, browser, browserExited, actualCdpPort,
 } from "./lib/browser.mjs";
+
+// ─── --setup mode ──────────────────────────────────────────────────
+if (process.argv.includes('--setup')) {
+  const { runSetup } = await import('./lib/setup.mjs');
+  runSetup();
+  process.exit(0);
+}
 
 import {
   gotoUrl, clickElement, fillElement, waitForSelector,
@@ -45,6 +52,11 @@ import { executeInstruction } from "./lib/act.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Read version from package.json — single source of truth
+const { version: BWB_VERSION } = JSON.parse(
+  readFileSync(join(__dirname, 'package.json'), 'utf8')
+);
+
 function parseArgs() {
   const args = process.argv.slice(2);
   const cliCfg = {};
@@ -56,7 +68,7 @@ function parseArgs() {
       case "--headless": cliCfg.headless = args[++i] !== "false"; break;
       case "--screenshots-dir": cliCfg.screenshotsDir = args[++i]; break;
       case "--timeout": cliCfg.navTimeout = parseInt(args[++i], 10); break;
-      case "--version": console.log("bwb-browser 3.0.0"); process.exit(0);
+      case "--version": console.log(`bwb-browser ${BWB_VERSION}`); process.exit(0);
       case "--help": printHelp(); process.exit(0);
     }
   }
@@ -65,7 +77,7 @@ function parseArgs() {
 
 function printHelp() {
   console.log(`
-bwb-browser v3.0.0 — Browser Without Bloat
+bwb-browser v${BWB_VERSION} — Browser Without Bloat
 
 Browser automation for AI agents. 76KB. 25 tools. Zero heavy dependencies.
 Uses raw CDP — no Playwright, no Puppeteer, no 400MB downloads.
@@ -217,7 +229,7 @@ function setupWatch(events, cdp) {
 
 // ─── MCP Server ───────────────────────────────────────────────────────────────
 
-const server = new McpServer({ name: "bwb-browser", version: "3.0.0" });
+const server = new McpServer({ name: "bwb-browser", version: BWB_VERSION });
 
 // Tool implementations
 const tools = {
