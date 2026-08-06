@@ -1,5 +1,35 @@
 # Changelog
 
+## 3.2.0 (2026-08-06) — "The Correctness Patch"
+
+> *"Surgery, not reboots. Every tool verified live, not just syntactically."*
+
+### New Feature
+- **`browser_screenshot({ selector })`** — capture just one element (a form, a chart, a product card) via bounding-rect clip. Verified live on real pages.
+
+### Fixed (from @netzro's PR #1 review — credit to the Hermes Agent)
+- `killOrphanedChrome()` now SIGTERM → 1s grace → SIGKILL **and scoped to bwb's own `--user-data-dir`** — it can no longer kill another agent's Chrome
+- `lib/diagnose.mjs` — `Runtime.enable`/`disable` now tracked as a single pair (events were left uncollected after an enable)
+- `lib/helpers.mjs` — `waitForSelector` dead-code branch collapsed
+- `lib/fingerprint.mjs` — `window.chrome.runtime` deletion replaced with safe `Object.defineProperty` getter (strict-mode-proof)
+- `server.mjs` — screenshot directory auto-detect: Android/Termux → `/storage/emulated/0/Download/bwb-screenshots`, otherwise `~/bwb-screenshots` (override with `BWB_SCREENSHOTS_DIR`)
+
+### Fixed (found live during verification)
+- **`browser_act` navigation regex** — greedy match swallowed compound instructions ("go to X and read the title" now navigates instead of failing)
+- **`browser_act` fill-swap bug** — "fill X with Y" and "type Y in X" had inverted semantics; now target/text are correct
+- **`browser_act` search anchoring** — unanchored `search` pattern could hijack "fill search with X"
+- **`browser_back`** — now uses native `Page.getNavigationHistory()` + `navigateToHistoryEntry` (the bundled CDP 1.3 protocol has no `Page.goBack`; the old JS `history.back()` hack is gone). History returns flat (`{currentIndex, entries}`), not nested — verified with real two-step back navigation.
+- **`browser_restart`** — calls `cleanupWatch()` so watch listeners never outlive the dying protocol
+- **`browser_status`** — port lookup uses the real bound port (`actualCdpPort || cfg.port`); removed the hardcoded 9222 poke that could probe another tool's browser
+
+### Docs
+- Tool count corrected everywhere: it's **26 tools**, not 25
+- README upgraded with the selector-screenshot feature and accuracy fixes
+
+### Quality
+- Behavioral verification, not just syntax: multi-step single-browser scenario suite all-green (navigate → watch start/poll/stop → diagnose → element screenshot → restart → post-restart fill)
+- Safety: pre-surgery tag `safety-v3.1.1-pre-320` + full backup tree
+
 ## 3.1.1 (2026-07-29)
 - Fix: version now reads dynamically from package.json — no more hardcoded version drift
 - `--version` and `--help` always show the real version

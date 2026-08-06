@@ -1,6 +1,6 @@
 # bwb-browser
 
-**Browser Without Bloat** — 76KB. 25 tools. Zero dependencies. Runs on your phone.
+**Browser Without Bloat** — 76KB. 26 tools. Zero dependencies. Runs on your phone.
 
 A lightweight MCP server that gives any AI agent browser superpowers. Written by a guy in India on Termux because the existing tools were 200MB of "why."
 
@@ -74,6 +74,36 @@ Create tabs, close them, switch between them, save cookies, load them back. Like
 
 Normalizes `navigator.webdriver`, plugins, languages, and user-agent for testing environments. Not "stealth mode" — just honest fingerprint normalization so your tests actually match real user conditions.
 
+### 7. Element Screenshots (new in 3.2.0)
+
+Capture just one element — a login form, a chart, a product card — not the whole page:
+
+```javascript
+browser_screenshot({selector: "#price-chart"})
+browser_screenshot({selector: "h1"})           // The headline, cropped
+browser_screenshot({fullPage: true})            // The whole page
+browser_screenshot({})                          // Just the viewport
+```
+
+Every screenshot is saved to disk (Android: `/storage/emulated/0/Download/bwb-screenshots/`, desktop: `~/bwb-screenshots/`) **and** returned to your agent as a base64 image.
+
+---
+
+## What's New in 3.2.0
+
+### New
+- **`browser_screenshot({ selector })`** — element-level capture. Grab just the login form, the chart, the product card — not the whole page.
+- **Screenshot directory auto-detect** — Termux/Android → `/storage/emulated/0/Download/bwb-screenshots/`, desktop → `~/bwb-screenshots/`. Override with `BWB_SCREENSHOTS_DIR`.
+
+### Bug Fixes
+- **`browser_back` rewritten** — native CDP history navigation (the `Page.goBack` call doesn't exist in bundled CDP 1.3; the old `history.back()` JS hack is gone). Verified with real two-step back navigation.
+- **`browser_act` precision fixes** — navigation regex no longer swallows compound instructions ("go to X and read the title" works), "fill X with Y" vs "type Y in X" no longer swap target/text, and `search` can't hijack "fill search with X"
+- **`killOrphanedChrome` safety** — graceful SIGTERM→SIGKILL, now scoped to bwb's own profile so it never kills another agent's browser
+- **`browser_restart` hygiene** — watch listeners can't outlive the dying protocol
+- **`browser_status` accuracy** — uses the real bound port, no more hardcoded 9222 poke
+
+*Fixes from the PR #1 code review by @netzro (Hermes Agent) are incorporated and credited in the [changelog](./CHANGELOG.md).*
+
 ---
 
 ## Quick Install
@@ -81,7 +111,7 @@ Normalizes `navigator.webdriver`, plugins, languages, and user-agent for testing
 ```bash
 npm install -g bwb-browser
 bwb --version
-# → bwb-browser 3.1.1
+# → bwb-browser 3.2.0
 ```
 
 Done. If you have Chrome/Chromium anywhere on your system, bwb finds it. No config files. No environment variables. Just works.
@@ -97,7 +127,7 @@ bwb
 
 ---
 
-## All 25 Tools
+## All 26 Tools
 
 | Tool | Description |
 |------|-------------|
@@ -106,7 +136,7 @@ bwb
 | **`browser_diagnose`** | 🔥 Full page health check — perf, errors, broken images, score |
 | **`browser_fingerprint`** | 🔥 Realistic browser profile for testing |
 | `browser_goto` | Navigate to a URL |
-| `browser_screenshot` | Take a screenshot |
+| `browser_screenshot` | Take a screenshot — whole page, viewport, or a single element via `selector` |
 | `browser_html` | Get page/selector HTML |
 | `browser_text` | Get page/selector text |
 | `browser_title` | Get page title |

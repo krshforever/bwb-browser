@@ -18,8 +18,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import CDP from "chrome-remote-interface";
-import { mkdirSync, readFileSync } from "fs";
-import { homedir } from "os";
+import { mkdirSync, readFileSync, existsSync } from "fs";
+import { homedir, platform } from "os";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -79,7 +79,7 @@ function printHelp() {
   console.log(`
 bwb-browser v${BWB_VERSION} — Browser Without Bloat
 
-Browser automation for AI agents. 76KB. 25 tools. Zero heavy dependencies.
+Browser automation for AI agents. 76KB. 26 tools. Zero heavy dependencies.
 Uses raw CDP — no Playwright, no Puppeteer, no 400MB downloads.
 
 Built on Termux/Android. Runs everywhere. Weighs nothing.
@@ -97,7 +97,7 @@ OPTIONS:
   --version                Print version
   --help                   Show this help
 
-TOOLS (25):
+TOOLS (26):
   CORE BROWSING:
     browser_goto              Navigate to a URL
     browser_screenshot        Take a screenshot
@@ -174,7 +174,14 @@ Object.assign(cfg, parseArgs());
 cfg.port = cfg.port || parseInt(process.env.BWB_CDP_PORT || "0", 10);
 cfg.headless = cfg.headless !== undefined ? cfg.headless : (process.env.BWB_HEADLESS !== "false");
 cfg.userDataDir = cfg.userDataDir || process.env.BWB_USER_DATA_DIR || join(homedir(), ".cache", "bwb-browser");
-cfg.screenshotsDir = cfg.screenshotsDir || process.env.BWB_SCREENSHOTS_DIR || "/storage/emulated/0/Download/bwb-screenshots";
+cfg.screenshotsDir = cfg.screenshotsDir || process.env.BWB_SCREENSHOTS_DIR || (() => {
+  // Auto-detect: Termux/Android path if available, else ~/bwb-screenshots/
+  const androidPath = "/storage/emulated/0/Download/bwb-screenshots";
+  if (platform() === "android" && existsSync("/storage/emulated/0/Download")) return androidPath;
+  if (process.env.HOME?.includes("com.termux")) return androidPath;
+  if (process.env.TERMUX_VERSION) return androidPath;
+  return join(homedir(), "bwb-screenshots");
+})();
 cfg.navTimeout = cfg.navTimeout || parseInt(process.env.BWB_NAV_TIMEOUT || "30000", 10);
 
 try { mkdirSync(cfg.screenshotsDir, { recursive: true }); } catch {}
@@ -248,16 +255,43 @@ const tools = {
   },
 
   browser_screenshot: {
-    description: "Take a screenshot of the current page.",
+    description: "Take a screenshot of the current page. Pass a CSS selector to capture just that element.",
     schema: {
       fullPage: z.boolean().describe("Full page screenshot (default false)").optional(),
       quality: z.number().describe("JPEG quality 0-100 (default 80)").optional(),
+      selector: z.string().describe("CSS selector to capture only that element (optional)").optional(),
     },
-    handler: async ({ fullPage = false, quality = 80 }) => {
-      const { Page } = await getActiveProtocol();
-      const { data } = await Page.captureScreenshot({ format: "jpeg", quality, captureBeyondViewport: fullPage });
+    handler: async ({ fullPage = false, quality = 80, selector }) => {
+      const { Page, Runtime } = await getActiveProtocol();
+      let clip;
+      if (selector) {
+        // Element capture: compute bounding rect in page coords, then clip
+        const { result } = await Runtime.evaluate({
+          expression: `(() => {
+            const el = document.querySelector(${JSON.stringify(selector)});
+            if (!el) return null;
+            const r = el.getBoundingClientRect();
+            const sx = window.scrollX || document.documentElement.scrollLeft;
+            const sy = window.scrollY || document.documentElement.scrollTop;
+            return JSON.stringify({ x: r.x + sx, y: r.y + sy, width: r.width, height: r.height });
+          })()`,
+          returnByValue: true,
+        });
+        const rect = result?.value ? JSON.parse(result.value) : null;
+        if (!rect || !rect.width || !rect.height) {
+          return { content: [{ type: "text", text: JSON.stringify({ error: `Element not found or not visible: ${selector}` }) }] };
+        }
+        clip = { ...rect, scale: 1 };
+      }
+      // captureBeyondViewport=false keeps clip math in viewport space; a 0-size clip
+      // would be rejected by CDP, so guard against degenerate rects above.
+      const { data } = await Page.captureScreenshot({
+        format: "jpeg", quality,
+        captureBeyondViewport: fullPage || !!clip,
+        ...(clip ? { clip } : {}),
+      });
       const savedPath = saveScreenshot(data);
-      const response = { screenshot: `data:image/jpeg;base64,${data.slice(0, 40)}...` };
+      const response = { screenshot: `data:image/jpeg;base64,${data.slice(0, 40)}...`, captured: clip ? selector : (fullPage ? "full page" : "viewport") };
       if (savedPath) response.savedTo = savedPath;
       return { content: [
         { type: "image", data, mimeType: "image/jpeg" },
@@ -317,8 +351,17 @@ const tools = {
     schema: {},
     handler: async () => {
       const { Page, Runtime } = await getActiveProtocol();
-      await Page.navigate({ url: "javascript:history.back()" });
-      await new Promise(r => setTimeout(r, 500));
+      // Native CDP back: walk history via navigation entries.
+      // NOTE: Page.goBack doesn't exist in the bundled CDP 1.3 protocol —
+      // getNavigationHistory + navigateToHistoryEntry is the native equivalent.
+      // The wrapper returns history FLAT ({currentIndex, entries}), not {result:{...}}.
+      const hist = await Page.getNavigationHistory();
+      const entries = hist?.entries || [];
+      const currentIdx = hist?.currentIndex ?? -1;
+      if (currentIdx > 0 && entries[currentIdx - 1]) {
+        await Page.navigateToHistoryEntry({ entryId: entries[currentIdx - 1].id });
+      }
+      await new Promise(r => setTimeout(r, Math.min(cfg.navTimeout, 1000)));
       const { result } = await Runtime.evaluate({ expression: "document.title" });
       syncActiveTab(result?.value, undefined);
       return { content: [{ type: "text", text: JSON.stringify({ title: result?.value || "" }) }] };
@@ -555,18 +598,17 @@ const tools = {
         status.running = true;
         status.pid = browser.pid;
         status.tabs = listTabs();
-        try {
-          if (actualCdpPort) {
-            status.actualPort = actualCdpPort;
-            const targets = await CDP.List({ port: actualCdpPort });
+        // actualCdpPort is the real bound port; cfg.port may be 0 (random).
+        // Never fall back to a hardcoded 9222 — that could be another tool's browser.
+        const listPort = actualCdpPort || cfg.port;
+        if (listPort) {
+          try {
+            status.actualPort = actualCdpPort || cfg.port;
+            const targets = await CDP.List({ port: listPort });
             status.connected = true;
             status.targets = targets.map(t => ({ type: t.type, url: t.url, title: t.title }));
-          } else {
-            const targets = await CDP.List({ port: cfg.port || 9222 });
-            status.connected = true;
-            status.targets = targets.map(t => ({ type: t.type, url: t.url, title: t.title }));
-          }
-        } catch { status.connected = false; }
+          } catch { status.connected = false; }
+        }
       }
       return { content: [{ type: "text", text: JSON.stringify(status) }] };
     },
@@ -577,6 +619,7 @@ const tools = {
     schema: {},
     handler: async () => {
       clearTabs(); // Kill stale tab connections before restart
+      cleanupWatch(); // Detach event listeners from the dying protocol before it's gone
       const result = await restartBrowser();
       return { content: [{ type: "text", text: JSON.stringify(result) }] };
     },

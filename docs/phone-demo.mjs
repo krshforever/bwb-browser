@@ -22,7 +22,7 @@ const TRANSPORT = process.argv.includes("--stdio") ? "stdio" : "inline";
 async function main() {
   console.log(`
 ╔══════════════════════════════════════════════════════╗
-║      bwb-browser v3.0 — Phone Demo                  ║
+║      bwb-browser v3.2 — Phone Demo                  ║
 ║      "Browser automation from your phone"            ║
 ╚══════════════════════════════════════════════════════╝
 `);
@@ -154,10 +154,10 @@ async function main() {
 ╔══════════════════════════════════════════════════════╗
 ║  DEMO COMPLETE                                       ║
 ║                                                      ║
-║  bwb-browser v3.0 ran 10 demo steps on:              ║
+║  bwb-browser v3.2 ran 10 demo steps on:              ║
 ║  ${process.platform} · Node ${process.version}                   ║
 ║                                                      ║
-║  25 tools · 76KB source · works on your phone        ║
+║  26 tools · 76KB source · works on your phone        ║
 ╚══════════════════════════════════════════════════════╝
 `);
 
