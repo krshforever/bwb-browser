@@ -90,7 +90,7 @@ Create tabs, close them, switch between them, save cookies, load them back. Like
 
 Normalizes `navigator.webdriver`, plugins, languages, and user-agent for testing environments. Not "stealth mode" — just honest fingerprint normalization so your tests actually match real user conditions.
 
-### 7. Element Screenshots (new in 3.2.0)
+### 7. Element Screenshots
 
 Capture just one element — a login form, a chart, a product card — not the whole page:
 
@@ -105,20 +105,24 @@ Every screenshot is saved to disk (Android: `/storage/emulated/0/Download/bwb-sc
 
 ---
 
-## What's New in 3.2.0
+## What's New in 4.0.0 — "Lightweight Like Air"
 
-### New
-- **`browser_screenshot({ selector })`** — element-level capture. Grab just the login form, the chart, the product card — not the whole page.
-- **Screenshot directory auto-detect** — Termux/Android → `/storage/emulated/0/Download/bwb-screenshots/`, desktop → `~/bwb-screenshots/`. Override with `BWB_SCREENSHOTS_DIR`.
+### Static-first fetch ladder
+- **`browser_goto` no longer spawns Chromium for plain pages** — fetch + extract in milliseconds (`mode: "static"`). JS pages escalate automatically (`mode: "browser"` + reason). Dead URLs error without spawning anything.
+- **On-demand capabilities** — `browser_download` / `browser_export` ship as verbs, not weight. Missing backends prompt for consent install. Nothing heavy is ever bundled.
 
-### Bug Fixes
-- **`browser_back` rewritten** — native CDP history navigation (the `Page.goBack` call doesn't exist in bundled CDP 1.3; the old `history.back()` JS hack is gone). Verified with real two-step back navigation.
-- **`browser_act` precision fixes** — navigation regex no longer swallows compound instructions ("go to X and read the title" works), "fill X with Y" vs "type Y in X" no longer swap target/text, and `search` can't hijack "fill search with X"
-- **`killOrphanedChrome` safety** — graceful SIGTERM→SIGKILL, now scoped to bwb's own profile so it never kills another agent's browser
-- **`browser_restart` hygiene** — watch listeners can't outlive the dying protocol
-- **`browser_status` accuracy** — uses the real bound port, no more hardcoded 9222 poke
+### Vigilance system
+- **Every tool response carries a `[bwb resources]` footer** — MCP + Chromium MB, tabs, ok/watch/critical. `browser_watch` streams memory samples on its existing poll rhythm.
+- **Thresholds act, then report** — critical pressure hibernates tabs, tears down at one tab, journals everything. The agent reads about the save, never discovers the OOM.
 
-*Fixes from the PR #1 code review by @netzro (Hermes Agent) are incorporated and credited in the [changelog](./CHANGELOG.md).*
+### Survival profile
+- **`--lean` auto-enables on Termux** — capped renderers, silenced background services, 3-tab cap, 5-minute mayfly teardown, 256MB JS heap. `--nuclear` opts into `--single-process`.
+- **Tab journal + lazy restore** — kills become resume points, not disasters. `bwb --setup` prints a survival guide.
+
+### Breaking
+- `browser_title` + `browser_url` folded into `browser_status.targets`. Still 26 tools — that's now a release gate.
+
+*Full story in the [changelog](./CHANGELOG.md). Older releases documented there too.*
 
 ---
 
@@ -127,7 +131,7 @@ Every screenshot is saved to disk (Android: `/storage/emulated/0/Download/bwb-sc
 ```bash
 npm install -g bwb-browser
 bwb --version
-# → bwb-browser 3.2.0
+# → bwb-browser 4.0.0
 ```
 
 Done. If you have Chrome/Chromium anywhere on your system, bwb finds it. No config files. No environment variables. Just works.
@@ -151,12 +155,10 @@ bwb
 | **`browser_watch`** | 🔥 Live event capture — console, network, errors, navigation |
 | **`browser_diagnose`** | 🔥 Full page health check — perf, errors, broken images, score |
 | **`browser_fingerprint`** | 🔥 Realistic browser profile for testing |
-| `browser_goto` | Navigate to a URL |
+| `browser_goto` | Navigate — static-first, escalates to browser with reason |
 | `browser_screenshot` | Take a screenshot — whole page, viewport, or a single element via `selector` |
 | `browser_html` | Get page/selector HTML |
 | `browser_text` | Get page/selector text |
-| `browser_title` | Get page title |
-| `browser_url` | Get current URL |
 | `browser_back` | Go back in history |
 | `browser_click` | Click an element (native CDP) |
 | `browser_fill` | Fill an input field (native CDP) |
@@ -171,7 +173,9 @@ bwb
 | `browser_saveCookies` | Save session to disk |
 | `browser_loadCookies` | Load session from disk |
 | `browser_listSessions` | List saved sessions |
-| `browser_status` | Browser connection info |
+| `browser_download` | Download media (needs system yt-dlp, consent-gated) |
+| `browser_export` | Export md/txt/html (pdf/docx/pptx need pip libs, consent-gated) |
+| `browser_status` | Status + live resources + active profile |
 | `browser_restart` | Restart the browser |
 
 ---
@@ -212,13 +216,13 @@ See [AGENTS.md](./AGENTS.md) for copy-paste configs for each one.
 
 ## The Backstory
 
-I built this because I was tired of every browser automation tool assuming you have 400MB to spare and a desktop-class machine. I work from my phone sometimes. Termux exists. Why shouldn't browser automation work there too?
+Every browser automation tool assumes you have 400MB to spare and a desktop-class machine. That assumption excludes phones, cheap VPS boxes, Raspberry Pis, and CI runners — most of the world's computers.
 
-So I did what any reasonable person would do: I ignored all the existing solutions and wrote my own, using nothing but raw CDP — the protocol Chrome speaks natively. No wrappers. No abstractions. Just JSON messages over WebSocket.
+bwb is engineered against the hardest constraint first: **a memory-pressured device where every megabyte is contested.** No bundled browser. No wrapper frameworks. Just raw CDP — the protocol Chrome speaks natively — plus a static-fetch ladder so Chromium only starts when JavaScript demands it. Mobile-first isn't a feature here. It's the design spec everything else has to survive.
 
-The result is 76KB of source code that does what 400MB of dependencies do. It's not _better_ code — it's _less_ code. And sometimes less is all you need.
+The result is ~136KB of source that does what 400MB of dependencies do. Not better code — less code, held to budgets: 26 tools max, 60 kB tarball max, zero native modules. Constraints are features.
 
-*— Krish Tiwari ([@krshforever](https://github.com/krshforever)), somewhere on an Indian train, writing code on a phone*
+*— Krish Tiwari ([@krshforever](https://github.com/krshforever))*
 
 ---
 
