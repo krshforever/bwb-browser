@@ -1,5 +1,41 @@
 # Changelog
 
+## 4.0.0 (2026-09-10) — "Lightweight Like Air"
+
+> *"We tried and failed, again and again. Shipped lean, watched Android kill it anyway.*
+> *Watched the battery drain overnight. Watched a single YouTube tab eat 746MB.*
+> *So we stopped asking the browser to be light — and started asking whether*
+> *the browser needs to be there at all. It usually doesn't."*
+
+### The story
+- v1–v3 made the **server** light (136KB source, zero browsers bundled) — then spawned Chromium for everything, including reading a README. Android's LMK killed whole Termux sessions mid-run, 15 minutes to 2 hours into overnight agent loops. WakeLocks didn't help; the footprint did it.
+- v4 inverts the default: **static-first fetch ladder.** Plain pages are fetched + extracted with zero Chromium (no process, no LMK risk, milliseconds). The browser spawns only when JS demands it — and on lean profiles it lives like a mayfly: capped tabs, idle teardown, journaled working set, transparent resurrection.
+- Measured, not claimed: single YouTube tab = **746MB Chromium tree** on-device (this number ended two verification sessions via OOM — the feature it motivated then proved itself by cleaning up with zero strays).
+
+### New: fetch ladder (Glyph merge, scoped)
+- `lib/fetch.mjs` — plain-HTTP + `@mozilla/readability` extraction, lazy-loaded deps (zero persistent RAM until first use). 2MB body cap, auth-wall + JS-shell detection.
+- `browser_goto` tries static first (`mode: "static"`), escalates to CDP (`mode: "browser"`, reason included), hard-errors dead URLs **without spawning anything**.
+- Ported the information tools' *behavior*, not their weight: research/extract/summarize ride the ladder. `download_media`/`export_results` ship as `browser_download`/`browser_export` — **verbs, not deps** (probe-and-consent, zero bundled weight, no silent installs).
+
+### New: vigilance system
+- Every tool response carries a `[bwb resources]` footer (MCP MB + Chromium MB + tabs + state). `browser_watch` poll streams memory samples on the existing rhythm.
+- Thresholds act, then report: critical pressure hibernates oldest tabs, tears down at one tab, journals everything. The agent reads about the save — never discovers the OOM.
+- Budgets: 300/450MB (lean: Termux auto-detect, 1GB VPS) vs 1024/1536MB desktop. Override via `BWB_WARN_MB`/`BWB_CRIT_MB`.
+
+### New: survival profile
+- `--lean` (auto on Termux): renderer cap, silenced background services, 64MB disk cache, 256MB JS heap cap. `--nuclear` opts into `--single-process` (max saving, min stability — your funeral, your flag).
+- Mayfly teardown: `--idle` (default 5min lean, off desktop), suppressed while `browser_watch` records. Tab journal (`bwb-tabs.json`) + capped lazy restore — resurrection reopens the working set, never re-spikes at startup.
+- `bwb --setup` prints a survival guide (incl. the honest note that WakeLock doesn't stop LMK).
+
+### Breaking (major version)
+- `browser_title` + `browser_url` removed — both already covered by `browser_status.targets`. Net tool count: **still 26**.
+- Tool count budget is now a release gate: v4 ships ≤26 tools.
+
+### Numbers (measured, `npm pack --dry-run` + `du`)
+- Tarball **38.8 kB** (budget was ≤60) / unpacked 138.1 kB / source ~136KB
+- Deps 3 → 5, all pure JS, zero native modules (`@mozilla/readability` 0 deps; `linkedom` light DOM)
+- Install weight ~62MB via npm ( SDK drift owns most of it; our addition ≈7MB) — the old "~1MB install" claim is retired; the comparison that matters (no bundled browser, no 250–400MB) stands
+
 ## 3.2.0 (2026-08-06) — "The Correctness Patch"
 
 > *"Surgery, not reboots. Every tool verified live, not just syntactically."*

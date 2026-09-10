@@ -12,20 +12,31 @@
  *   --headless / BWB_HEADLESS               — Run headless (default: true)
  *   --screenshots-dir / BWB_SCREENSHOTS_DIR — Directory for saved screenshots
  *   --timeout / BWB_NAV_TIMEOUT             — Navigation timeout in ms (default: 30000)
+ *   --lean / BWB_LEAN                       — Survival profile: capped renderers,
+ *                                             silenced background services, tab cap,
+ *                                             mayfly teardown (default: auto on Termux)
+ *   --nuclear / BWB_NUCLEAR                 — Add --single-process (max saving,
+ *                                             min stability). Opt-in only.
+ *   --idle / BWB_IDLE_MS                    — Mayfly teardown after N ms idle
+ *                                             (default: 5min lean, off desktop)
+ *   --tab-max / BWB_TAB_MAX                 — Live-tab cap, oldest hibernated
+ *                                             (default: 3 lean, unlimited desktop)
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import CDP from "chrome-remote-interface";
+import { execSync } from "child_process";
 import { mkdirSync, readFileSync, existsSync } from "fs";
 import { homedir, platform } from "os";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 import {
-  ensureBrowser, restartBrowser, saveScreenshot,
+  ensureBrowser, restartBrowser, stopBrowser, saveScreenshot,
   cfg, browser, browserExited, actualCdpPort,
+  isTermux, pokeActivity, setIdleSuppressed,
 } from "./lib/browser.mjs";
 
 // ─── --setup mode ──────────────────────────────────────────────────
@@ -41,7 +52,11 @@ import {
 
 import {
   getActiveProtocol, createTab, closeTab, switchTab, listTabs, syncActiveTab, clearTabs,
+  hibernateTab,
 } from "./lib/tabs.mjs";
+
+import { staticFetch } from "./lib/fetch.mjs";
+import { sampleResources, assess, resourceFooter, resolveBudgets } from "./lib/vigil.mjs";
 
 import { saveSession, loadSession, listSessions } from "./lib/session.mjs";
 import { diagnosePage } from "./lib/diagnose.mjs";
@@ -68,6 +83,10 @@ function parseArgs() {
       case "--headless": cliCfg.headless = args[++i] !== "false"; break;
       case "--screenshots-dir": cliCfg.screenshotsDir = args[++i]; break;
       case "--timeout": cliCfg.navTimeout = parseInt(args[++i], 10); break;
+      case "--lean": cliCfg.lean = args[++i] !== "false"; break;
+      case "--nuclear": cliCfg.nuclear = args[++i] !== "false"; break;
+      case "--idle": cliCfg.idleMs = parseInt(args[++i], 10); break;
+      case "--tab-max": cliCfg.tabMax = parseInt(args[++i], 10); break;
       case "--version": console.log(`bwb-browser ${BWB_VERSION}`); process.exit(0);
       case "--help": printHelp(); process.exit(0);
     }
@@ -77,12 +96,12 @@ function parseArgs() {
 
 function printHelp() {
   console.log(`
-bwb-browser v${BWB_VERSION} — Browser Without Bloat
+ bwb-browser v${BWB_VERSION} — Browser Without Bloat
 
-Browser automation for AI agents. 76KB. 26 tools. Zero heavy dependencies.
-Uses raw CDP — no Playwright, no Puppeteer, no 400MB downloads.
+Browser automation for AI agents. Static-first, lean like air. 26 tools.
+Raw CDP — no Playwright, no Puppeteer. Chromium starts only when JS demands it.
 
-Built on Termux/Android. Runs everywhere. Weighs nothing.
+Built on Termux/Android. Runs everywhere — including 1GB VPS boxes.
 
 USAGE:
   bwb [options]
@@ -94,18 +113,21 @@ OPTIONS:
   --headless <bool>        Run headless (default: true)
   --screenshots-dir <path> Directory to save screenshots
   --timeout <ms>           Navigation timeout in ms (default: 30000)
+  --lean <bool>            Survival profile (default: auto on Termux)
+  --nuclear                Add --single-process (max saving, min stability)
+  --idle <ms>              Mayfly teardown after N ms idle (default: 5min lean)
+  --tab-max <n>            Live-tab cap, oldest hibernated (default: 3 lean)
   --version                Print version
   --help                   Show this help
 
 TOOLS (26):
   CORE BROWSING:
-    browser_goto              Navigate to a URL
+    browser_goto              Navigate (static-first, escalates to browser)
     browser_screenshot        Take a screenshot
     browser_html              Get page/selector HTML
     browser_text              Get page/selector text
-    browser_title             Get page title
-    browser_url               Get current URL
     browser_back              Go back in history
+    (title/url folded into browser_status — v4 breaking change)
 
   INTERACTION:
     browser_click             Click an element
@@ -116,7 +138,7 @@ TOOLS (26):
 
   🔥 ADVANCED:
     browser_act               Natural language page interaction (one tool does it all)
-    browser_watch             Live page event capture (console, network)
+    browser_watch             Live page event capture (console, network + resources)
     browser_diagnose          Full page health diagnostic
     browser_fingerprint       Realistic browser profile for testing
     browser_waitForSelector   Wait for element to appear/disappear
@@ -124,7 +146,7 @@ TOOLS (26):
   MULTI-TAB:
     browser_newTab            Create a new tab
     browser_closeTab          Close a tab
-    browser_switchTab         Switch to a different tab
+    browser_switchTab         Switch to a tab (hibernated tabs wake)
     browser_listTabs          List all open tabs
 
   SESSION:
@@ -132,8 +154,12 @@ TOOLS (26):
     browser_loadCookies       Load session cookies from disk
     browser_listSessions      List saved sessions
 
+  ON-DEMAND (verbs ship, weight doesn't — backends install on consent):
+    browser_download          Download media (needs system yt-dlp)
+    browser_export            Export md/txt/html (pdf/docx/pptx need pip libs)
+
   LIFECYCLE:
-    browser_status            Browser connection status
+    browser_status            Status + live resources + active profile
     browser_restart           Restart the browser
 
 If bwb saves you time or money, consider supporting development:
@@ -183,6 +209,24 @@ cfg.screenshotsDir = cfg.screenshotsDir || process.env.BWB_SCREENSHOTS_DIR || ((
   return join(homedir(), "bwb-screenshots");
 })();
 cfg.navTimeout = cfg.navTimeout || parseInt(process.env.BWB_NAV_TIMEOUT || "30000", 10);
+// v4 survival defaults: lean auto-detects Termux; mayfly + tab cap follow lean
+// unless explicitly overridden. Desktop behavior unchanged (all off).
+if (cfg.lean === null || cfg.lean === undefined) {
+  if (process.env.BWB_LEAN !== undefined) cfg.lean = process.env.BWB_LEAN !== "false";
+  else cfg.lean = isTermux();
+}
+if (cfg.nuclear === undefined || cfg.nuclear === null) {
+  cfg.nuclear = process.env.BWB_NUCLEAR === "true";
+}
+if (cfg.idleMs === null || cfg.idleMs === undefined) {
+  if (process.env.BWB_IDLE_MS !== undefined) cfg.idleMs = parseInt(process.env.BWB_IDLE_MS, 10);
+  else cfg.idleMs = cfg.lean ? 5 * 60 * 1000 : 0;
+}
+if (cfg.tabMax === null || cfg.tabMax === undefined) {
+  if (process.env.BWB_TAB_MAX !== undefined) cfg.tabMax = parseInt(process.env.BWB_TAB_MAX, 10);
+  else cfg.tabMax = cfg.lean ? 3 : 0;
+}
+resolveBudgets(cfg.lean);
 
 try { mkdirSync(cfg.screenshotsDir, { recursive: true }); } catch {}
 
@@ -243,14 +287,29 @@ const tools = {
   // ═══════════════ CORE BROWSING ═══════════════
 
   browser_goto: {
-    description: "Navigate to a URL. Returns page title and URL.",
+    description: "Navigate to a URL. Returns page title and URL. v4: static-first — plain pages are fetched + extracted with zero Chromium; JS pages escalate to CDP automatically (see mode field).",
     schema: { url: z.string().describe("URL to navigate to") },
     handler: async ({ url }) => {
+      // Rung 1: static fetch. No browser spawned, no LMK risk, milliseconds.
+      const attempt = await staticFetch(url, { timeout: Math.min(cfg.navTimeout, 15000) });
+      if (attempt.mode === "static") {
+        syncActiveTab(attempt.title, attempt.finalUrl);
+        return { content: [{ type: "text", text: JSON.stringify({
+          mode: "static", title: attempt.title, url: attempt.finalUrl,
+          text: attempt.text, confidence: attempt.confidence,
+          note: "Served without Chromium. Need interaction/screenshots? Use browser_act / browser_screenshot — that escalates to the browser.",
+        }) }] };
+      }
+      if (attempt.mode === "error") {
+        // Dead URL — CDP shares the same network, don't spawn Chromium for a 404.
+        return { content: [{ type: "text", text: JSON.stringify({ mode: "error", error: attempt.error }) }] };
+      }
+      // Rung 2: escalate to Chromium (JS shell, auth wall, non-text).
       const cdp = await getActiveProtocol();
       const { Page, Runtime } = cdp;
       const result = await gotoUrl(Page, Runtime, url, cfg.navTimeout);
       syncActiveTab(result.title, result.url);
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      return { content: [{ type: "text", text: JSON.stringify({ ...result, mode: "browser", escalated: attempt.reason }) }] };
     },
   },
 
@@ -322,26 +381,6 @@ const tools = {
         ? `document.querySelector(${JSON.stringify(selector)})?.textContent || ''`
         : "document.body?.textContent || ''";
       const { result } = await Runtime.evaluate({ expression: expr });
-      return { content: [{ type: "text", text: result?.value || "" }] };
-    },
-  },
-
-  browser_title: {
-    description: "Get current page title.",
-    schema: {},
-    handler: async () => {
-      const { Runtime } = await getActiveProtocol();
-      const { result } = await Runtime.evaluate({ expression: "document.title" });
-      return { content: [{ type: "text", text: result?.value || "" }] };
-    },
-  },
-
-  browser_url: {
-    description: "Get current page URL.",
-    schema: {},
-    handler: async () => {
-      const { Runtime } = await getActiveProtocol();
-      const { result } = await Runtime.evaluate({ expression: "window.location.href" });
       return { content: [{ type: "text", text: result?.value || "" }] };
     },
   },
@@ -467,16 +506,21 @@ const tools = {
         await cdp.Runtime.enable();
         await cdp.Network.enable();
         setupWatch(events, cdp);
+        setIdleSuppressed(true); // recording in progress — mayfly must not teardown
         return { content: [{ type: "text", text: JSON.stringify({ status: "watching", events, msg: "Recording started. Poll to get events." }) }] };
       }
       if (action === "poll") {
         const snapshot = [...watchState.events];
         watchState.events = [];
-        return { content: [{ type: "text", text: JSON.stringify({ count: snapshot.length, events: snapshot }) }] };
+        // Resource vigilance rides the existing poll rhythm — no new mechanism.
+        let resources = null;
+        try { resources = sampleResources(browser?.pid, listTabs().filter((t) => !t.hibernated).length); } catch {}
+        return { content: [{ type: "text", text: JSON.stringify({ count: snapshot.length, events: snapshot, resources }) }] };
       }
       if (action === "stop") {
         const remaining = [...watchState.events];
         cleanupWatch();
+        setIdleSuppressed(false);
         return { content: [{ type: "text", text: JSON.stringify({ status: "stopped", captured: remaining.length, events: remaining }) }] };
       }
       return { content: [{ type: "text", text: JSON.stringify({ error: "Invalid action" }) }] };
@@ -542,7 +586,7 @@ const tools = {
     description: "Switch to a different browser tab by targetId.",
     schema: { targetId: z.string().describe("Target tab ID to switch to") },
     handler: async ({ targetId }) => {
-      const result = switchTab(targetId);
+      const result = await switchTab(targetId);
       return { content: [{ type: "text", text: JSON.stringify(result) }] };
     },
   },
@@ -587,10 +631,105 @@ const tools = {
     },
   },
 
+  // ═══════════════ ON-DEMAND CAPABILITIES ═══════════════
+  // Verbs ship, weight doesn't. Heavy backends (yt-dlp, reportlab) are NEVER
+  // bundled — probed at call time, installed only on explicit user consent.
+
+  browser_download: {
+    description: "Download media from a URL (video, audio, subtitles, thumbnail). Requires yt-dlp on the system — if missing, returns install instructions instead of failing silently. No silent installs, ever.",
+    schema: {
+      url: z.string().describe("Media URL"),
+      format: z.enum(["best", "audio", "video", "subtitles", "thumbnail"]).describe("What to download").optional(),
+      quality: z.enum(["best", "good", "worst"]).describe("Quality tier").optional(),
+    },
+    handler: async ({ url, format = "best", quality = "best" }) => {
+      // No shell metachars ever reach execSync — http(s) only.
+      if (!/^https?:\/\/[^\\s"';`$(){}|&<>]+$/i.test(url)) {
+        return { content: [{ type: "text", text: JSON.stringify({ error: "refused: URL must be http(s) without shell metacharacters" }) }] };
+      }
+      let hasYtDlp = false;
+      try {
+        execSync("yt-dlp --version", { stdio: "ignore", timeout: 5000 });
+        hasYtDlp = true;
+      } catch {}
+      if (!hasYtDlp) {
+        return { content: [{ type: "text", text: JSON.stringify({
+          needsInstall: true,
+          tool: "yt-dlp",
+          install: {
+            termux: "pkg install yt-dlp",
+            debian: "pip install yt-dlp",
+            macos: "brew install yt-dlp",
+          },
+          ask: "yt-dlp is not installed. Reply YES (agent: ask the human) to install it, or install manually and retry. Nothing was downloaded.",
+        }) }] };
+      }
+      const outDir = join(dirname(cfg.screenshotsDir), "bwb-downloads");
+      try { mkdirSync(outDir, { recursive: true }); } catch {}
+      const args = ["--no-playlist", "-P", outDir, "--print", "after_move:filepath"];
+      if (format === "audio") args.push("-x", "--audio-format", "mp3");
+      else if (format === "subtitles") args.push("--write-subs", "--skip-download");
+      else if (format === "thumbnail") args.push("--write-thumbnail", "--skip-download");
+      if (quality === "worst") args.push("-f", "worst");
+      else if (quality === "good") args.push("-f", "best[height<=720]");
+      args.push(url);
+      try {
+        const out = execSync(`yt-dlp ${args.map((a) => `"${a}"`).join(" ")}`, { encoding: "utf8", timeout: 600000, maxBuffer: 1024 * 1024 });
+        const file = out.trim().split("\n").pop();
+        return { content: [{ type: "text", text: JSON.stringify({ downloaded: file, format, quality }) }] };
+      } catch (err) {
+        return { content: [{ type: "text", text: JSON.stringify({ error: "download failed", detail: String(err.message || err).slice(0, 500) }) }] };
+      }
+    },
+  },
+
+  browser_export: {
+    description: "Export findings/text to a file. md/txt/html always work (zero deps). docx/pdf/pptx need python libs — if missing, returns install instructions. No silent installs.",
+    schema: {
+      text: z.string().describe("Content to export (markdown accepted)"),
+      format: z.enum(["md", "txt", "html", "pdf", "docx", "pptx"]).describe("Output format").optional(),
+      output_path: z.string().describe("Where to write the file").optional(),
+      title: z.string().describe("Document title").optional(),
+    },
+    handler: async ({ text, format = "md", output_path, title = "bwb export" }) => {
+      const { writeFileSync: wfs } = await import("fs");
+      const dest = output_path || join(dirname(cfg.screenshotsDir), `bwb-export-${Date.now()}.${format === "txt" ? "txt" : format === "html" ? "html" : "md"}`);
+      if (["md", "txt"].includes(format)) {
+        try { wfs(dest, text, "utf8"); } catch (err) {
+          return { content: [{ type: "text", text: JSON.stringify({ error: `write failed: ${err.message}` }) }] };
+        }
+        return { content: [{ type: "text", text: JSON.stringify({ exported: dest, format }) }] };
+      }
+      if (format === "html") {
+        const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        try { wfs(dest, `<!doctype html><html><head><meta charset="utf8"><title>${title}</title></head><body><pre>${esc}</pre></body></html>`, "utf8"); } catch (err) {
+          return { content: [{ type: "text", text: JSON.stringify({ error: `write failed: ${err.message}` }) }] };
+        }
+        return { content: [{ type: "text", text: JSON.stringify({ exported: dest, format }) }] };
+      }
+      // pdf/docx/pptx need python libs — probe, then consent-gate.
+      const need = { pdf: "reportlab", docx: "python-docx", pptx: "python-pptx" }[format];
+      let have = false;
+      try {
+        execSync(`python3 -c "import ${need.split("-").join("_")}"`, { stdio: "ignore", timeout: 10000 });
+        have = true;
+      } catch {}
+      if (!have) {
+        return { content: [{ type: "text", text: JSON.stringify({
+          needsInstall: true,
+          tool: need,
+          install: `pip install ${need}`,
+          ask: `${need} is not installed. Reply YES (agent: ask the human) to install it, or install manually and retry. Nothing was written. md/txt/html export works without it.`,
+        }) }] };
+      }
+      return { content: [{ type: "text", text: JSON.stringify({ ready: true, tool: need, note: "Backend present. Tell the agent to run the conversion explicitly — bwb never executes installs itself." }) }] };
+    },
+  },
+
   // ═══════════════ LIFECYCLE ═══════════════
 
   browser_status: {
-    description: "Get browser and page status including opened tabs and connection info.",
+    description: "Get browser and page status including opened tabs and connection info. v4: includes live resource readings (MCP + Chromium MB, budgets) so the agent sees pressure before Android does.",
     schema: {},
     handler: async () => {
       const status = { connected: false, port: cfg.port, actualPort: null, running: false, pid: null, tabs: [] };
@@ -610,6 +749,11 @@ const tools = {
           } catch { status.connected = false; }
         }
       }
+      try {
+        status.resources = sampleResources(browser?.pid, status.tabs.filter((t) => !t.hibernated).length);
+        status.resources.state = assess(status.resources);
+        status.profile = { lean: cfg.lean, nuclear: cfg.nuclear, idleMs: cfg.idleMs, tabMax: cfg.tabMax };
+      } catch {}
       return { content: [{ type: "text", text: JSON.stringify(status) }] };
     },
   },
@@ -628,8 +772,45 @@ const tools = {
 
 // ─── Register & Start ─────────────────────────────────────────────────────────
 
+// Single choke point for every tool call: poke the mayfly timer, then append
+// a ~100-byte resource footer. On critical pressure, shed load BEFORE
+// returning — hibernate oldest tabs, teardown at one tab — and say so.
 for (const [name, tool] of Object.entries(tools)) {
-  server.tool(name, tool.description, tool.schema, tool.handler);
+  const inner = tool.handler;
+  server.tool(name, tool.description, tool.schema, async (args) => {
+    let result;
+    try {
+      result = await inner(args);
+    } finally {
+      try { pokeActivity(); } catch {}
+    }
+    try {
+      const liveTabs = listTabs().filter((t) => !t.hibernated).length;
+      const sample = sampleResources(browser?.pid, liveTabs);
+      let note = "";
+      if (assess(sample) === "critical" && browser && !browserExited) {
+        // Evidence first: keep the peak numbers that triggered the shed.
+        const peak = `${sample.mcpMb}+${sample.chromiumMb ?? "?"}MB`;
+        // Shed oldest non-active tabs first; teardown at one tab. Journal keeps all.
+        const victims = listTabs().filter((t) => !t.active && !t.hibernated).map((t) => t.id);
+        for (const id of victims) {
+          await hibernateTab(id);
+          const after = sampleResources(browser?.pid, listTabs().filter((t) => !t.hibernated).length);
+          note = `shed tab ${id.slice(0, 8)} at peak ${peak}`;
+          Object.assign(sample, after);
+          if (assess(sample) !== "critical") break;
+        }
+        if (assess(sample) === "critical" && listTabs().filter((t) => !t.hibernated).length <= 1) {
+          try { await stopBrowser("oom-guard"); } catch {}
+          note += `${note ? "; " : ""}browser stopped at peak ${peak} (oom-guard) — journal saved, next call resurrects`;
+        }
+      }
+      if (result && Array.isArray(result.content)) {
+        result.content.push({ type: "text", text: resourceFooter(sample, note) });
+      }
+    } catch {}
+    return result;
+  });
 }
 
 await ensureDeps();

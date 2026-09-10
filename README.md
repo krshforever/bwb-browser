@@ -1,8 +1,21 @@
 # bwb-browser
 
-**Browser Without Bloat** — 76KB. 26 tools. Zero dependencies. Runs on your phone.
+**Browser Without Bloat** — 136KB source. 26 tools. Static-first. Runs on your phone, survives it too.
 
-A lightweight MCP server that gives any AI agent browser superpowers. Written by a guy in India on Termux because the existing tools were 200MB of "why."
+A lightweight MCP server that gives any AI agent browser superpowers. Written by a guy in India on Termux because the existing tools were 200MB of "why" — then rewritten when Android kept killing those tools mid-run.
+
+---
+
+## v4: The Browser Starts Only When It Must
+
+v1–v3 made the server light but spawned Chromium for everything — including reading a README. Android's out-of-memory killer ate whole Termux sessions for that. v4 inverts the default:
+
+- **Static-first fetch ladder** — plain pages are fetched + extracted with zero Chromium. `browser_goto` returns `mode: "static"` in milliseconds. JS pages escalate to CDP automatically (`mode: "browser"` + reason). Dead URLs error without spawning anything.
+- **Vigilance system** — every tool response carries a `[bwb resources]` footer. On critical pressure bwb hibernates tabs itself, tears down at one tab, journals everything, and tells the agent what it did.
+- **Survival profile** — `--lean` auto-enables on Termux (capped renderers, 3-tab cap, 5-minute mayfly teardown, 256MB JS heap). Runs on a 1GB VPS. Your tabs resurrect from the journal after any kill.
+- **On-demand capabilities** — `browser_download` / `browser_export` ship as verbs, not weight. Missing backends (yt-dlp, reportlab) prompt for consent install. Nothing heavy is ever bundled.
+
+Measured on-device: a single YouTube tab costs **746MB** of Chromium tree. That's why the ladder exists.
 
 ---
 
@@ -12,17 +25,20 @@ Every other MCP browser tool ships a full browser binary. Playwright MCP? ~250MB
 
 bwb uses **raw Chrome DevTools Protocol (CDP)** — the same protocol Chrome speaks natively. It auto-detects the browser already on your system. No downloads. No binary mismatches. No "why is my disk full" panic.
 
-| Factor | bwb | Playwright MCP | Puppeteer MCP |
+| Factor | bwb v4 | Playwright MCP | Puppeteer MCP |
 |--------|-----|----------------|---------------|
-| Source size | **76KB** | ~50MB+ | ~100MB+ |
-| Total install | **~1MB** | ~250MB | ~400MB |
+| Source size | **~136KB** | ~50MB+ | ~100MB+ |
+| Published tarball | **38.8 kB** | — | — |
+| Total install (npm) | **~62MB, zero browsers** | ~250MB | ~400MB |
 | Bundled browser | **None** | Chromium (~200MB) | Chromium (~300MB) |
+| Chromium spawns for plain pages | **Never (static-first)** | Always | Always |
 | Works on Termux/Android | **✅ Yes** | ❌ | ❌ |
-| Zero deps (no node_modules hell) | **✅ Yes** | ❌ | ❌ |
+| Survives 1GB RAM / phone OOM | **✅ Lean profile + vigilance** | ❌ | ❌ |
+| Zero native deps | **✅ Yes** | ❌ | ❌ |
 | Live event streaming | **✅** | ❌ | ❌ |
 | Natural language interaction | **✅** | ❌ | ❌ |
 | Persistent sessions | **✅** | ❌ | ❌ |
-| CPU profile at idle | Basically nothing | 🐌 | 🐌 |
+| CPU profile at idle | Mayfly teardown (Termux) | 🐌 | 🐌 |
 
 ---
 

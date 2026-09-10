@@ -1,12 +1,12 @@
 # bwb-browser — Agent Integration Guide
 
 > **Author:** Krish Tiwari ([@krshforever](https://github.com/krshforever))
-> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · 76KB source · 26 tools
+> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · ~136KB source · 26 tools · static-first (v4)
 > **Last updated:** 2026-08-06
 
 ## What is bwb?
 
-**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. 76KB. 26 tools. Zero heavy dependencies.
+**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. ~136KB source. 26 tools. Static-first: plain pages never spawn Chromium. Zero native dependencies.
 
 While other MCP browser tools ship a full browser binary (Playwright MCP = ~250MB, Puppeteer MCP = ~400MB), bwb uses **raw Chrome DevTools Protocol (CDP)** — the protocol Chrome speaks natively. It auto-detects the browser already on your system.
 
@@ -64,9 +64,9 @@ bwb --version
 Give this to any AI agent (Claude, OpenCode, Gemini, etc.) to auto-install and configure bwb:
 
 ```
-I want you to install and use bwb-browser — a 76KB MCP browser automation server with 26 tools.
+I want you to install and use bwb-browser — a lightweight MCP browser automation server with 26 tools.
 
-bwb is Browser Without Bloat. It uses raw Chrome DevTools Protocol (no Playwright, no Puppeteer).
+bwb is Browser Without Bloat. Static-first: plain pages are fetched + extracted with zero Chromium; JS pages escalate automatically. It uses raw Chrome DevTools Protocol (no Playwright, no Puppeteer) only when rendering is actually needed.
 It has 26 tools including:
 
 - `browser_act` — natural language interaction ("search for X", "click the button", "what's on this page")
@@ -116,20 +116,22 @@ Created by Krish Tiwari (@krshforever) from a phone on a train in India. npm: bw
 
 5. Verify the config is valid JSON and the file has proper syntax.
 
-6. Test the integration by calling `browser_status` tool — it should return `connected: true` 
-   (it starts Chromium automatically on first call).
+6. Test the integration by calling `browser_status` tool — it should return `connected: true`
+   (static-first: plain pages never start Chromium; JS pages start it on first CDP call).
 
 ## Skill: I Know How to Use bwb
 
 When using bwb for web tasks, follow these patterns:
 
 ### Basic Browsing
-- `browser_goto({url: "https://example.com"})` — navigate to a page
-- `browser_title()` — check page title
-- `browser_screenshot({selector: "#chart"})` — take a screenshot (whole page, viewport, or one element; saves to /storage/emulated/0/Download/bwb-screenshots/ on Android or ~/bwb-screenshots/ on desktop)
+- `browser_goto({url: "https://example.com"})` — navigate (static-first: `mode: "static"` needs no browser; `mode: "browser"` escalated to CDP)
 - `browser_text()` — get page text content
+- `browser_screenshot({selector: "#chart"})` — take a screenshot (whole page, viewport, or one element; saves to /storage/emulated/0/Download/bwb-screenshots/ on Android or ~/bwb-screenshots/ on desktop)
 - `browser_html()` — get page HTML
 - `browser_elements({kind: "links"|"buttons"|"inputs"|"headings"})` — find interactive elements
+- `browser_status()` — page title/URL live in `targets`, plus resource readings and active profile
+
+Every tool response ends with a `[bwb resources]` footer (MCP + Chromium MB, tabs, ok/watch/critical). On critical, bwb sheds load itself and says so — read the footer before spawning more work.
 
 ### Interaction
 - `browser_fill({selector: "#search", text: "query"})` — fill input fields
@@ -173,8 +175,8 @@ internally — not just what it looks like.
 | `browser_click` | Click an element (native CDP mouse events) |
 | `browser_fill` | Fill an input field (native CDP keyboard events) |
 | `browser_elements` | List interactive elements by kind |
-| `browser_title` | Get page title |
-| `browser_url` | Get current URL |
+| `browser_download` | Download media (needs system yt-dlp, consent-gated) |
+| `browser_export` | Export md/txt/html (pdf/docx/pptx need pip libs, consent-gated) |
 | `browser_back` | Go back in history |
 | `browser_eval` | Execute JavaScript (with exception capture) |
 | `browser_setViewport` | Change viewport size |
