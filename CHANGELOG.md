@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.0.1 — "Guest Mode"
+
+### New: attach mode (`--attach-port` / `BWB_ATTACH_PORT`)
+- Attach to an already-running browser's CDP port (e.g. `9222`) instead of spawning headless. bwb becomes a guest: no spawn, no orphan-kill, no journal restore on connect, no auto-shed of foreign tabs (pressure is reported in the footer; the human closes their own tabs).
+- `browser_status` reports `attached: true` + `profile.attached: <port>`; `stopBrowser`/`restartBrowser` disconnect only, never kill. `pid` stays `null` (foreign process, untracked).
+- Use case: drive the window you're looking at — `BWB_ATTACH_PORT=9222 bwb` then `browser_newTab` opens a VISIBLE tab.
+
+### Fixed
+- Runtime browser detection (`findBrowserPath`) missed Brave while `--setup` already detected it — static mode worked but any CDP escalation failed with "Browser not started" on Brave-only machines. `brave-browser`, `brave`, `/usr/bin/brave-browser` added to linux candidates.
+
 ## 4.0.0 (2026-09-10) — "Lightweight Like Air"
 
 > *"We tried and failed, again and again. Shipped lean, watched Android kill it anyway.*

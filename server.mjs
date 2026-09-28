@@ -21,6 +21,10 @@
  *                                             (default: 5min lean, off desktop)
  *   --tab-max / BWB_TAB_MAX                 — Live-tab cap, oldest hibernated
  *                                             (default: 3 lean, unlimited desktop)
+ *   --attach-port / BWB_ATTACH_PORT         — Attach to an already-running
+ *                                             browser's CDP port (e.g. 9222)
+ *                                             instead of spawning. Guest mode:
+ *                                             never spawns, kills, or restores.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -35,7 +39,7 @@ import { fileURLToPath } from "url";
 
 import {
   ensureBrowser, restartBrowser, stopBrowser, saveScreenshot,
-  cfg, browser, browserExited, actualCdpPort,
+  cfg, browser, browserExited, actualCdpPort, attached,
   isTermux, pokeActivity, setIdleSuppressed,
 } from "./lib/browser.mjs";
 
@@ -87,6 +91,7 @@ function parseArgs() {
       case "--nuclear": cliCfg.nuclear = args[++i] !== "false"; break;
       case "--idle": cliCfg.idleMs = parseInt(args[++i], 10); break;
       case "--tab-max": cliCfg.tabMax = parseInt(args[++i], 10); break;
+      case "--attach-port": cliCfg.attachPort = parseInt(args[++i], 10); break;
       case "--version": console.log(`bwb-browser ${BWB_VERSION}`); process.exit(0);
       case "--help": printHelp(); process.exit(0);
     }
@@ -117,6 +122,8 @@ OPTIONS:
   --nuclear                Add --single-process (max saving, min stability)
   --idle <ms>              Mayfly teardown after N ms idle (default: 5min lean)
   --tab-max <n>            Live-tab cap, oldest hibernated (default: 3 lean)
+  --attach-port <n>        Attach to a running browser's CDP port (e.g. 9222).
+                           Guest mode: no spawn, no kill, visible window.
   --version                Print version
   --help                   Show this help
 
@@ -198,6 +205,7 @@ async function ensureDeps() {
 
 Object.assign(cfg, parseArgs());
 cfg.port = cfg.port || parseInt(process.env.BWB_CDP_PORT || "0", 10);
+cfg.attachPort = cfg.attachPort || parseInt(process.env.BWB_ATTACH_PORT || "0", 10);
 cfg.headless = cfg.headless !== undefined ? cfg.headless : (process.env.BWB_HEADLESS !== "false");
 cfg.userDataDir = cfg.userDataDir || process.env.BWB_USER_DATA_DIR || join(homedir(), ".cache", "bwb-browser");
 cfg.screenshotsDir = cfg.screenshotsDir || process.env.BWB_SCREENSHOTS_DIR || (() => {
@@ -733,9 +741,11 @@ const tools = {
     schema: {},
     handler: async () => {
       const status = { connected: false, port: cfg.port, actualPort: null, running: false, pid: null, tabs: [] };
-      if (browser && !browserExited) {
+      // Attach mode: no child process (browser === null) — liveness is the CDP link.
+      if ((browser && !browserExited) || (attached && !browserExited)) {
         status.running = true;
-        status.pid = browser.pid;
+        status.pid = browser ? browser.pid : null;
+        if (attached) status.attached = true;
         status.tabs = listTabs();
         // actualCdpPort is the real bound port; cfg.port may be 0 (random).
         // Never fall back to a hardcoded 9222 — that could be another tool's browser.
@@ -753,6 +763,7 @@ const tools = {
         status.resources = sampleResources(browser?.pid, status.tabs.filter((t) => !t.hibernated).length);
         status.resources.state = assess(status.resources);
         status.profile = { lean: cfg.lean, nuclear: cfg.nuclear, idleMs: cfg.idleMs, tabMax: cfg.tabMax };
+        if (attached) status.profile.attached = actualCdpPort || cfg.attachPort;
       } catch {}
       return { content: [{ type: "text", text: JSON.stringify(status) }] };
     },
@@ -788,7 +799,9 @@ for (const [name, tool] of Object.entries(tools)) {
       const liveTabs = listTabs().filter((t) => !t.hibernated).length;
       const sample = sampleResources(browser?.pid, liveTabs);
       let note = "";
-      if (assess(sample) === "critical" && browser && !browserExited) {
+      // Never auto-shed in attach mode: those are the user's REAL tabs.
+      // Report pressure in the footer; the human closes their own tabs.
+      if (!attached && assess(sample) === "critical" && browser && !browserExited) {
         // Evidence first: keep the peak numbers that triggered the shed.
         const peak = `${sample.mcpMb}+${sample.chromiumMb ?? "?"}MB`;
         // Shed oldest non-active tabs first; teardown at one tab. Journal keeps all.

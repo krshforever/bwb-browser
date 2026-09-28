@@ -226,6 +226,18 @@ BWB_CHROME_PATH=/path/to/chrome bwb
 bwb --browser-path /path/to/chrome
 ```
 
+### Attach Mode (drive the window you're looking at)
+```bash
+# Launch your browser with remote debugging first, e.g.:
+#   brave --remote-debugging-port=9222
+BWB_ATTACH_PORT=9222 bwb
+# or
+bwb --attach-port 9222
+```
+Guest mode: no spawn, no kill, no journal restore. `browser_newTab` opens a
+VISIBLE tab in your window. Auto-shed is disabled (those are your real tabs) —
+pressure is reported, you close them. `browser_status` shows `attached: true`.
+
 ---
 
 ## License
