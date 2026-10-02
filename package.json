@@ -16,7 +16,9 @@
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test test/",
-    "lint": "for f in server.mjs lib/*.mjs; do node --check \"$f\" || exit 1; done"
+    "lint": "for f in server.mjs lib/*.mjs; do node --check \"$f\" || exit 1; done",
+    "smoke": "node test/smoke.mjs",
+    "test:all": "npm run lint && npm test && npm run smoke"
   },
   "keywords": [
     "mcp",
