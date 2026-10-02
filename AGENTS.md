@@ -53,7 +53,7 @@ npm install -g bwb-browser
 
 # 2. Verify it works
 bwb --version
-# → bwb-browser 4.0.2
+# → bwb-browser 4.1.0
 
 # 3. Add to your AI agent's MCP config
 ```

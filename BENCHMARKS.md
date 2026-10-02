@@ -1,7 +1,7 @@
 # bwb-browser — Benchmarks & Comparison
 
 > **bwb**: ~173KB source, 65 kB tarball, 26 tools, 5 runtime dependencies, no bundled browser
-> Numbers refreshed for 4.0.2. Figures marked *(measured)* come from runs on the author's machine; anything else is an approximate published size and should be re-verified before you quote it.
+> Numbers refreshed for 4.1.0. Figures marked *(measured)* come from runs on the author's machine; anything else is an approximate published size and should be re-verified before you quote it.
 
 ## Size Comparison
 
@@ -42,7 +42,7 @@ An end-to-end run over six steps — scrape, explore, search, extract, rapid-fir
   Total: 44.9s · 6 mission steps · 7 screenshots
 ```
 
-Those five rapid-fire timings are from v1, before the static ladder existed — the article and data fetches in that sequence are now answered without a browser at all, so the same run is substantially faster on 4.0.2. The script is `docs/phone-demo.mjs`.
+Those five rapid-fire timings are from v1, before the static ladder existed — the article and data fetches in that sequence are now answered without a browser at all, so the same run is substantially faster on 4.1.0. The script is `docs/phone-demo.mjs`.
 
 ## What actually makes bwb different
 
@@ -75,6 +75,6 @@ Every other browser MCP needs one of: Playwright/Puppeteer (200–400MB), a proo
 
 ## Roadmap
 
-v4 line: correctness and security hardening (4.0.2 shipped the URL policy, the element-scoring rewrite and the test suite). Longer term: accessibility tree, recording/replay, a browser pool for CI parallelisation, and possibly hosted browser instances.
+v4 line: correctness and security hardening (4.1.0 shipped the URL policy, the element-scoring rewrite and the test suite). Longer term: accessibility tree, recording/replay, a browser pool for CI parallelisation, and possibly hosted browser instances.
 
 **No paid tier.** There is no Pro licence, no CAPTCHA-solving service, and no proxy rotation behind a paywall. That is not a roadmap item — it is a promise. If bwb ever does need money to survive, that page will say so plainly before anything is paywalled.

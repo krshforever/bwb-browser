@@ -1,8 +1,14 @@
 # Changelog
 
-## 4.0.2 — "It was quietly doing the wrong thing"
+## 4.1.0 — "It was quietly doing the wrong thing"
 
 A deep review of 4.0.1 found the two flagship features were silently wrong, and that a handful of security holes mattered more than usual for a tool an LLM points at pages it does not control. This release is the fixes. Most of it is `Fixed`, because most of it was broken.
+
+### Why a minor, not a major
+
+Some of this changes observable behaviour, so a major bump is defensible. It is a minor because **every change either is a fix, adds an optional parameter, or fails loudly with an error that names the fix** — and the consumer is a model reading JSON, not source code importing a library. Nothing was removed or renamed: still 26 tools, and no parameter was taken away. A shape change like `browser_text`'s new `{text, ...}` wrapper costs a human nothing and an agent nothing at all; it reads the field and moves on.
+
+One change did break a real workflow silently, so it is worth stating plainly: **`bwb --setup` is now a dry run unless you pass `--yes`.** If you script it, add the flag. When stdout is not a terminal it also prints the warning to stderr, so a CI step cannot miss it.
 
 ### The bugs that mattered (each reproduced before the fix, each covered by a test)
 

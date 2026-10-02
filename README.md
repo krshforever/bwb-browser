@@ -124,7 +124,7 @@ bwb drives a **real, logged-in browser** on behalf of a model that is reading pa
 
 ---
 
-## What's New — 4.0.2
+## What's New — 4.1.0
 
 ### It was quietly doing the wrong thing. Now it doesn't.
 - **`browser_act` typed in lowercase.** Every pattern matched `instruction.toLowerCase()` and then typed the captured group, so `fill password with MyS3cretPass` sent `mys3cretpass`. Case is preserved everywhere now, and secrets are redacted from the result instead of echoed back.
@@ -165,7 +165,7 @@ bwb drives a **real, logged-in browser** on behalf of a model that is reading pa
 ```bash
 npm install -g bwb-browser
 bwb --setup --yes     # writes the MCP entry into your agent's config
-bwb --version         # → bwb-browser 4.0.2
+bwb --version         # → bwb-browser 4.1.0
 ```
 
 `bwb --setup` is a **dry run unless you pass `--yes`** — it lists exactly which of your agents' config files it would touch. If you have Chrome/Chromium anywhere on your system, bwb finds it. No config files of your own. No environment variables. Just works.
@@ -264,7 +264,7 @@ Every browser automation tool assumes you have 400MB to spare and a desktop-clas
 
 bwb is engineered against the hardest constraint first: **a memory-pressured device where every megabyte is contested.** No bundled browser. No wrapper frameworks. Just CDP — the protocol Chrome speaks natively, over one thin client — plus a static-fetch ladder so Chromium only starts when JavaScript demands it. Mobile-first isn't a feature here. It's the design spec everything else has to survive.
 
-The result is ~173KB of source that does what 400MB of dependencies do. Not better code — less code, held to budgets: 26 tools max, 5 runtime dependencies, 65 kB tarball, zero native modules. Constraints are features. (The 4.0.2 correctness pass grew the source by ~50KB: a real URL policy, a real element-scoring engine, and the tests that keep them honest.)
+The result is ~173KB of source that does what 400MB of dependencies do. Not better code — less code, held to budgets: 26 tools max, 5 runtime dependencies, 65 kB tarball, zero native modules. Constraints are features. (The 4.1.0 correctness pass grew the source by ~50KB: a real URL policy, a real element-scoring engine, and the tests that keep them honest.)
 
 *— Krish Tiwari ([@krshforever](https://github.com/krshforever))*
 
@@ -272,7 +272,7 @@ The result is ~173KB of source that does what 400MB of dependencies do. Not bett
 
 ## Roadmap
 
-- **bwb Cloud** — hosted browser instances so your agent has a browser even when your laptop's asleep. (The URL policy in 4.0.2 is what makes this safe to offer; prompt injection becomes a server-side problem there.)
+- **bwb Cloud** — hosted browser instances so your agent has a browser even when your laptop's asleep. (The URL policy in 4.1.0 is what makes this safe to offer; prompt injection becomes a server-side problem there.)
 - **`browser_act` v2** — multi-step with feedback loops (not just "search for X" but "research this topic and summarize")
 - **Recording & Replay** — record sessions, replay them, debug them
 - **Browser pool** — multiple isolated instances for CI parallelization
