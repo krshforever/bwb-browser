@@ -67,7 +67,7 @@ A deep review of 4.0.1 found the two flagship features were silently wrong, and 
 ### Testing
 
 - `npm test` was `node --check server.mjs && node --check lib/*.mjs`. `node --check` takes **one** file, so the shell expanded the second path and only the first was ever checked: a syntax error anywhere in `lib/` exited **0**. There were no tests at all.
-- Now: `npm test` → `node --test test/`, `npm run lint` (every file), `npm run smoke` (boots the real server over stdio — tool count, URL policy, export confinement, `--readonly`), and CI on Node 18/20/22 with a hard 26-tool gate.
+- Now: 95 unit tests via `npm test` → `node --test test/`, `npm run lint` (every file), `npm run smoke` (boots the real server over stdio — tool count, URL policy, export confinement, `--readonly`), and CI on Node 18/20/22 with a hard 26-tool gate.
 - `test/integration.mjs` (`npm run test:browser`) runs 21 checks against a **real** Chromium: the static→browser handoff, the sandbox flag on the live process, click hit-testing, fill replacement, watch idempotence and diagnose-does-not-kill-watch, tab hibernation, journal hygiene, `--allow-domains`, `--readonly`, restart-and-resume. It skips itself when no browser is installed, and CI runs it on `ubuntu-latest`.
 - `jsdom` is a devDependency for tests only. No new runtime dependency.
 

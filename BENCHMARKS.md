@@ -71,7 +71,7 @@ Every other browser MCP needs one of: Playwright/Puppeteer (200–400MB), a proo
 - ✅ **Scraping** — article extraction with no browser at all
 - ✅ **Form automation** — native CDP input events, select-then-insert (no append)
 - ✅ **Screenshot pipelines** — full page, viewport, or one selector; newest 50 retained
-- ✅ **CI on Linux** — `npm test` (84 unit tests) + `npm run smoke` + `npm run test:browser` (21 checks against a real Chromium), Node 18/20/22
+- ✅ **CI on Linux** — `npm test` (95 unit tests) + `npm run smoke` + `npm run test:browser` (21 checks against a real Chromium), Node 18/20/22
 
 ## Roadmap
 
