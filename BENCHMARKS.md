@@ -1,116 +1,80 @@
-# bwb-browser — Competitive Benchmarks
+# bwb-browser — Benchmarks & Comparison
 
-> **bwb**: 30KB, 11 tools, raw CDP, Zero heavy deps
-> Last updated: 2026-07-28
+> **bwb**: ~174KB source, 64 kB tarball, 26 tools, 5 runtime dependencies, no bundled browser
+> Numbers refreshed for 4.0.2. Figures marked *(measured)* come from runs on the author's machine; anything else is an approximate published size and should be re-verified before you quote it.
 
 ## Size Comparison
 
-| Tool | Package Size | Dependencies | Browser Engine | Termux? | Setup Time |
-|------|-------------|-------------|----------------|---------|-----------|
-| **bwb-browser** | **30 KB** | **3** (tiny) | Raw CDP | ✅ Native | **5 seconds** |
-| cdpilot | 488 KB | 0 | Raw CDP | ⚠️ Not tested | 5 seconds |
-| Playwright MCP | 200+ MB | 30+ | Playwright | ❌ | 5+ minutes |
+| Tool | Package size | Runtime deps | Browser engine | Termux? | Setup time |
+|------|--------------|--------------|----------------|---------|-----------|
+| **bwb-browser** | **64 kB** | **5** | CDP over a thin client | ✅ Native | **5 seconds** |
+| Playwright MCP | 200+ MB | 30+ | Playwright (bundled Chromium) | ❌ | 5+ minutes |
 | Chrome DevTools MCP | 300+ MB | 50+ | Puppeteer | ❌ | 5+ minutes |
 | Puppeteer MCP | 400+ MB | 50+ | Puppeteer | ❌ | 5+ minutes |
-| OpenChrome | 118 KB | 3 | CDP (real Chrome) | ⚠️ Untested | 2 minutes |
-| Termux Browser Pilot | 5+ MB | 20+ (Python) | Firefox/Chromium+xdotool | ✅ Native | 10+ minutes |
-| termux-puppeteer-mcp | 10+ MB | 50+ | Puppeteer in Alpine | ✅ Container | 5-10 minutes |
-| bb-browser | 1.8 MB | 7 | CDP+daemon | ⚠️ Untested | 2 minutes |
+
+Install footprint is the number that matters on a phone or a 1GB VPS: `npm install -g bwb-browser` pulls ~62MB of Node dependencies and **zero** browsers. That is roughly 3–6x smaller than the alternatives, and it is the number the 4.x work actually moved.
+
+## What the static ladder saves *(measured)*
+
+The headline of v4 is not a benchmark, it is an absence: for a plain article, **Chromium never starts**.
+
+| Page type | `browser_goto` mode | Chromium spawned | Typical wall time |
+|-----------|--------------------|------------------|-------------------|
+| News article, blog post, docs | `static` | no | ~0.2–0.8s |
+| `robots.txt`, JSON, CSV, RSS | `static` | no | ~0.05–0.2s |
+| JS app / SPA shell | `browser` (escalated) | yes | 2–15s |
+| Logged-in page (cookies loaded) | `browser` | yes | 2–15s |
+
+A single YouTube tab costs **746MB** of Chromium tree RSS *(measured, Termux/Android)*. That is why the ladder exists and why the resource footer exists.
 
 ## Live Demo Results (2026-07-28, Termux/Android)
 
-```
-╔══════════════════════════════════════════════════════════╗
-║        bwb-browser  —  LIVE DEMO                     ║
-║  30KB · 11 tools · raw CDP · zero bloat · on Termux   ║
-╚════════════════════════════════════════════════════════╝
+An end-to-end run over six steps — scrape, explore, search, extract, rapid-fire, status — completed in **44.9s total** with 7 screenshots, driving a real browser on a phone. Raw output:
 
+```
   Step 1: Scraping Hacker News frontpage       ✅  1.7s
-    - #1: 7.1 Earthquake in Japan
-    - #2: About the security content of macOS Tahoe 26.6
-    - #3: What Even Are Microservices?
-    - #4: Our position on open-weights models
-    - #5: Google's Beyond Zero
-
   Step 2: Exploring GitHub Trending            ✅  5.1s
-    - pascalorg/editor, jenkinsci/jenkins, ...
-
   Step 3: Google search + fill + submit        ✅  4.0s
-    - Filled "bwb browser automation termux", submitted, screenshot
-
   Step 4: Wikipedia article extraction         ✅  3.2s
-    - "A headless browser is a web browser without a GUI..."
-
   Step 5: Rapid-fire 5 sites in sequence       ✅ 24.1s
-    - example.com: 744ms
-    - httpbin.org/ip: 1635ms
-    - github.com: 5146ms
-    - wikipedia.org: 15359ms (load event wait)
-    - news.ycombinator.com: 1231ms
-
   Step 6: System status                        ✅  0.1s
-    - Connected: true, Port: 39243, PID: 15409
-
-═══════════════════════════════════════════════════════════
+  ─────────────────────────────────────────────────────────
   Total: 44.9s · 6 mission steps · 7 screenshots
-═══════════════════════════════════════════════════════════
 ```
 
-## What Makes bwb Unique
+Those five rapid-fire timings are from v1, before the static ladder existed — the article and data fetches in that sequence are now answered without a browser at all, so the same run is substantially faster on 4.0.2. The script is `docs/phone-demo.mjs`.
 
-### 1. The Only Native Termux/Android MCP Browser Server
-Every other browser MCP requires either:
-- Heavy frameworks (Playwright/Puppeteer — 200-400MB)
-- Container layers (proot-distro Alpine — 10+ min setup)
-- X11 servers (Xvfb + openbox — Python dependency hell)
-- Desktop-only (can't run on Termux at all)
+## What actually makes bwb different
 
-**bwb works natively** — just Node.js + Chromium from `pkg`.
+### 1. It runs natively on Termux/Android
+Every other browser MCP needs one of: Playwright/Puppeteer (200–400MB), a proot/Alpine container layer, an Xvfb + window manager, or a desktop. bwb needs Node and Chromium from `pkg`.
 
-### 2. 100x Smaller Than The Competition
-- Playwright MCP: 200MB+ (70x bwb)
-- Puppeteer MCP: 400MB+ (130x bwb)
-- Chrome DevTools MCP: 300MB+ (100x bwb)
+### 2. It is built against the memory budget, not just the feature list
+26 tools max (a release gate, enforced in CI), 5 dependencies, no native modules, a lean profile that caps renderers on a 1GB box, and a resource footer on **every** response so the agent sees pressure before Android's OOM killer does.
 
-**bwb: 30KB.**
+### 3. It fails visibly
+- A heuristic clicker that cannot decide between "Login" and "Login with Google" returns `candidates` rather than clicking one.
+- A click whose label reads "Delete account" needs `force:true`.
+- A URL policy refuses `file:`, `javascript:` and private/loopback addresses instead of fetching them.
+- `--readonly` exists for exactly the case where you do not trust the page.
 
-### 3. Production-Ready in One Command
-```bash
-npm install -g bwb-browser
-# Then add one line to opencode.json
-```
+## When to NOT use bwb
 
-vs competitors requiring:
-- 5-10 minute setup scripts
-- Container configuration
-- Python virtual environments
-- System package installation
-
-### 4. Raw CDP Power Without Bloat
-No Playwright, no Puppeteer, no Selenium — just the Chrome DevTools Protocol via `chrome-remote-interface`. This means:
-- **Lower latency** — no framework overhead between you and the browser
-- **Full CDP access** — intercept requests, manipulate cookies, profile performance
-- **No version conflicts** — works with any Chromium version
-
-## When to NOT Use bwb
-
-- You need multi-browser testing (Firefox, WebKit) → use Playwright MCP
-- You need pixel-perfect evasion → use Stealth Browser MCP or cdpilot
-- You need complex network interception → add a layer yourself (raw CDP is available)
-- You're on desktop and want more tools → Playwright MCP has 21 tools
+- Multi-browser testing (Firefox, WebKit) → Playwright MCP
+- Pixel-perfect bot evasion as a product feature → a dedicated stealth stack
+- A pixel/trace-level debugging protocol → Chrome DevTools MCP
+- Complex request interception → CDP `Fetch` domain is reachable via `browser_eval`/CDP, but it is not a product feature here
 
 ## Use Cases
 
-- ✅ **AI agents on mobile** — Browse the web from your phone via Claude/OpenCode
-- ✅ **Web scraping** — Extract data from any page, no Puppeteer overhead
-- ✅ **Form automation** — Fill and submit forms with native CDP input events
-- ✅ **Screenshot pipelines** — Capture pages for monitoring/archival
-- ✅ **CI/CD on Termux** — Run browser tests in your Android CI pipeline
-- ✅ **Learning/Prototyping** — Simplest possible CDP setup for experimentation
+- ✅ **AI agents on mobile** — browse from a phone via Claude Code / OpenCode
+- ✅ **Scraping** — article extraction with no browser at all
+- ✅ **Form automation** — native CDP input events, select-then-insert (no append)
+- ✅ **Screenshot pipelines** — full page, viewport, or one selector; newest 50 retained
+- ✅ **CI on Linux** — `npm test` (84 tests + a stdio smoke test) + `npm run smoke`, Node 18/20/22
 
-## Roadmap to v2.0 (Monetization Path)
+## Roadmap
 
-1. **v1.x** (current) — Free, open-source, MIT. Core 11 tools, Termux-native.
-2. **v2.0 Beta** — Free. Add: accessibility tree, realistic browser fingerprint, proxy rotation.
-3. **v2.0 Pro** — Paid license. Add: parallel tabs, persistent sessions, network interception, CAPTCHA handling, enterprise auth.
-4. **bwb Cloud** — Managed browser instances. Pay-per-use. No infrastructure to manage.
+v4 line: correctness and security hardening (4.0.2 shipped the URL policy, the element-scoring rewrite and the test suite). Longer term: accessibility tree, recording/replay, a browser pool for CI parallelisation, and possibly hosted browser instances.
+
+**No paid tier.** There is no Pro licence, no CAPTCHA-solving service, and no proxy rotation behind a paywall. That is not a roadmap item — it is a promise. If bwb ever does need money to survive, that page will say so plainly before anything is paywalled.

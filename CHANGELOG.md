@@ -1,5 +1,80 @@
 # Changelog
 
+## 4.0.2 — "It was quietly doing the wrong thing"
+
+A deep review of 4.0.1 found the two flagship features were silently wrong, and that a handful of security holes mattered more than usual for a tool an LLM points at pages it does not control. This release is the fixes. Most of it is `Fixed`, because most of it was broken.
+
+### The bugs that mattered (each reproduced before the fix, each covered by a test)
+
+- **`browser_act` typed everything in lowercase.** Every pattern matched `instruction.trim().toLowerCase()` and then typed or navigated the captured group, so `fill password with MyS3cretPass` sent `mys3cretpass` (and echoed it back to the model), and `go to GitHub.com/Krish/Repo` navigated to `github.com/krish/repo`. Matching is case-insensitive now; the text that gets typed keeps its case.
+- **`browser_act` clicked the wrong element.** The finder returned a CSS selector and the caller re-queried it, so `a` matched the first link: "click the Pricing link" reported `clicked: "Pricing"` and dispatched a mouse event at **Home**. `data-testid` also produced the invalid selector `["checkout-btn"]` instead of `[data-testid="checkout-btn"]`. Scoring, filtering, scrolling, measuring and tagging now all happen inside one `Runtime.evaluate`, against one element.
+- **Element matching was mostly documented fiction.** `aria-label`, `title`, `value` and hidden-node filtering were half-supported, and the "exact match is best" comment sat above a loop that returned on the first element whose text merely *contained* the query, in document order — so "click login" hit "Login with Google" before "Login". All candidates are scored now (exact > startsWith > contains > fuzzy), the smallest/leafmost element wins, `html`/`body`/`script`/`style` are excluded, and **if the top two scores are within 2 points it returns `candidates` instead of guessing**.
+- **`browser_act "search for X"` typed into whatever input was first on the page** — a newsletter email field, then pressed Enter — because the finder fell back to "first input" and made the real search fallbacks unreachable. Search now only matches search-shaped inputs, and an unknown target returns the candidate list.
+- **`fill`/`type` appended instead of replacing.** `focus()` alone does not clear a field, and the Ctrl+A was sent as raw key events with no `modifiers` bit, so it did nothing; only plain inputs survived, via `el.value = ''`. Now `el.select()` / `execCommand('selectAll')` before `insertText`.
+- **Static fetch corrupted every multibyte page.** `html += Buffer.from(value).toString("utf8")` decoded *each network chunk separately*, so any character straddling a chunk boundary became `U+FFFD`. Reproduced with a Devanagari page: **1,445 replacement characters**. Real servers split at arbitrary byte offsets, so this hit Hindi/CJK/emoji pages at random. Chunks are concatenated as bytes and decoded once, honouring the declared charset (header, then `<meta charset>`).
+- **Static fetch had no body timeout.** `clearTimeout` ran in a `finally` as soon as *headers* arrived, so a server that sent headers and then trickled bytes hung past the configured timeout (reproduced: >7s with `timeout: 2000`). The abort timer now covers the body read.
+- **Static fetch escalated to Chromium for JSON, XML, CSV and a 31-byte `robots.txt`** — precisely the cases v4 exists to avoid. Those types are served verbatim now, with no Readability and no "too thin" heuristic.
+- **`browser_goto` (static) and every other tool saw different pages.** After `mode:"static"` nothing was navigated, so `browser_text` / `browser_click` / `browser_screenshot` / `browser_act` all spawned Chromium on `about:blank` and returned nothing — while the response itself said "use browser_screenshot, that escalates". Escalation did not navigate. It does now: the static URL is carried across and materialized by the first tool that needs a live page.
+- **The static rung ignored loaded cookies.** `browser_loadCookies("gmail")` then `browser_goto(gmail)` returned the logged-**out** page with `confidence: "high"`, and the agent concluded it was logged out. Once cookies are loaded, static fetches are skipped for the rest of the run.
+- **`browser_listTabs` lied after a static goto**: `syncActiveTab` was called with the static URL while the real tab was elsewhere.
+- **`browser_text` returned `textContent`** — `<script>` and `<style>` bodies, hidden nodes — while describing itself as "visible text". Now `innerText`, with a `maxChars` cap and `truncated`/`nextOffset`.
+- **`browser_eval` could not await.** No `awaitPromise`, so `await fetch(...)` returned `{}` and agents concluded their script had done nothing.
+- **`browser_watch` leaked listeners and went stale.** The `chrome-remote-interface` unsubscribe functions were discarded, so `cleanupWatch()` removed nothing, `start` twice duplicated every event, and listeners stayed bound to a switched-away or closed tab. `Page.frameNavigated` was also subscribed without `Page.enable()`, so navigation events never arrived at all. `start` is idempotent now, and switching tabs or restarting stops the capture.
+- **`browser_diagnose` killed an active watch.** `Runtime.enable()` does *not* throw when already enabled, so the "was it already enabled?" probe always answered no and the handler always called `Runtime.disable()` — silently stopping console capture.
+- **`browser_download` refused any URL containing the letter "s".** The validator was `/^https?:\/\/[^\\s"';`$(){}|&<>]+$/i`, where `\\s` inside a character class is a literal backslash **and the letter s**: `https://x.com/user/status/123` was rejected, `https://www.instagram.com/p/abc/` was rejected, while `https://example.com/a b` was accepted. It also still built a shell string.
+- **CLI booleans swallowed the next argument.** `--nuclear --lean true` produced `{nuclear: true}` — `--lean` was eaten as `--nuclear`'s value. `--port abc` became `NaN` → a random port. Unknown flags were ignored silently.
+- **`gotoUrl` reported the URL it was asked for**, ignored `Page.navigate`'s `errorText` (a DNS failure returns normally), and resolved silently on timeout.
+- **Clicks could silently miss** — no `scrollIntoView`, no visibility check, no `elementFromPoint` verification — and still reported success.
+- **`browser_waitForSelector` aborted on navigation**: "Execution context was destroyed" is thrown by design mid-navigation, and it was uncaught.
+- **Tab lifecycle.** Hibernating the default tab closed its target but left the *global* connection pointing at it, so the next call got a dead protocol. The tab-cap loop could `CDP.Close` **real user tabs** in attach mode. The oom-guard could tear the browser down mid-task, losing form state and scroll.
+- **Screenshots overwrote each other** (second-level timestamp) and were never pruned — on Android that is the public Download folder.
+- **The resource footer ran `ps -o … -e` synchronously on every tool call**, blocking the event loop (including `browser_watch` handlers) and listing every process on the box. Now async, cached for 5s.
+- **`restartBrowser` could return `undefined`**, producing `text: undefined` — malformed MCP content.
+- **`browser_export` wrote anywhere.** Any `output_path`, including `~/.bashrc`.
+- **`browser_export` lied about pdf/docx/pptx**: `{ready: true}`, and nothing written.
+- **`bwb --setup` wrote `mcpServers` into `~/.claude/settings.json`** — which Claude Code does not read for MCP ([#4976](https://github.com/anthropics/claude-code/issues/4976), [#26167](https://github.com/anthropics/claude-code/issues/26167)) — and then printed "✅ Claude Code: configured". It also edited up to eight other tools' config files with no confirmation and no dry run, overwrote a single `.bak` on every re-run, reformatted files with `JSON.stringify` (comments lost), and resolved `HOME` as `process.env.HOME || '/root'` — so on Windows it looked in a directory nobody has.
+- **`run.sh`** pointed at `server.js` (the file is `server.mjs`) and hardcoded a Termux `NODE_PATH`. Deleted; `bin/bwb` is the entry point.
+
+### Security
+
+- **URL policy** (`lib/urlpolicy.mjs`), applied to goto, newTab, act-navigation, download and every static fetch *including each redirect hop*: `file:`, `javascript:`, `data:`, `chrome:`, `devtools:`, `view-source:` refused; loopback / private / link-local / CGNAT (`127/8`, `10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `::1`, `fc00::/7`) refused unless `BWB_ALLOW_PRIVATE=1`. Before this, `browser_goto("file:///etc/passwd")` fell through to `Page.navigate` and `browser_text` read the file back — reachable by telling the agent "summarise file:///home/you/.bwb/sessions/gmail.json" — and the static rung happily fetched `127.0.0.1`, or `169.254.169.254` on a cloud box.
+- **The Chromium sandbox stays on.** 4.0.1 passed `--no-sandbox --disable-setuid-sandbox` on *every* platform, removing the main containment for a browser rendering pages an LLM chose from untrusted content. Now applied only on Termux, as root, or with `BWB_NO_SANDBOX=1`.
+- **Secrets at rest.** Session cookies were written with the default umask (world-readable) into a `0755` directory, holding live logins for every visited domain. Now `0600` inside `0700`, with an optional `domains` filter. The tab journal stored full URLs — OAuth callbacks, magic links, reset tokens — and re-navigated them on every spawn, even on desktop and even for an unrelated task. Now origin + path only, and desktop spawns no longer replay stale entries (`--journal-full` restores the old behaviour).
+- **No shell in new paths.** `ps`/`which` are read via `execFile` and filtered in JS (the old pipeline interpolated `userDataDir` into a shell string, escaping only `"` and `\`, and did not exist on Windows); `yt-dlp` runs via `execFile` with `--`; a profile lock file stops two agents sharing a user-data-dir from killing each other's browser.
+- **`--readonly` / `BWB_READONLY=1`** disables every state-changing tool. **`--allow-domains`** restricts navigation to a host list.
+- **`browser_act` refuses destructive clicks** ("Delete account", "Buy now", "Send", …) with `needs_confirmation` unless `force:true`.
+
+### New
+
+- `browser_goto` takes `mode: "auto" | "static" | "browser"`, `maxChars` and `raw`.
+- `browser_saveCookies` takes `domains` and warns that the file is a credential.
+- `browser_text` / `browser_html` take `maxChars`; `browser_setViewport` takes `reset`.
+- `browser_act` takes `force`. `browser_eval` takes `timeout`.
+- Config flags: `--readonly`, `--allow-domains`, `--always-browser`, `--no-sandbox`, `--journal-full`, `--confirm-destructive`. `bwb --setup` is a **dry run unless you pass `--yes`**.
+- Static results carry `links` (first 40), so an agent can navigate without a browser.
+
+### Changed / removed
+
+- `browser_export` lost `pdf` / `docx` / `pptx`. They reported success and wrote nothing; rather than ship a lie, the enum ends at md/txt/html, and writes are confined to the export directory with an extension allowlist and no silent overwrite.
+- `browser_fingerprint` no longer hardcodes `Chrome/126 … Linux x86_64`, which contradicted `navigator.platform` and `userAgentData` and made it *more* detectable on Termux ARM. The UA is derived from `Browser.getVersion()` with matching metadata. The docs no longer call this "not stealth mode" — it is the standard anti-detection patch set, intended for testing sites you own.
+- `browser_diagnose`'s score is documented as a heuristic, not a Lighthouse grade.
+- Screenshots get millisecond + random filenames, and the newest `BWB_SHOT_KEEP` (default 50) are kept.
+- Tool descriptions rewritten to state return shapes and failure modes. "GROUNDBREAKING" is gone — marketing in model-facing text is a cost, not a feature.
+
+### Testing
+
+- `npm test` was `node --check server.mjs && node --check lib/*.mjs`. `node --check` takes **one** file, so the shell expanded the second path and only the first was ever checked: a syntax error anywhere in `lib/` exited **0**. There were no tests at all.
+- Now: `npm test` → `node --test test/`, `npm run lint` (every file), `npm run smoke` (boots the real server over stdio — tool count, URL policy, export confinement, `--readonly`), and CI on Node 18/20/22 with a hard 26-tool gate.
+- `jsdom` is a devDependency for tests only. No new runtime dependency.
+
+### Docs
+
+- Size numbers corrected everywhere (~174KB source, 64 kB tarball, 5 runtime dependencies) instead of "136KB", "zero-dependencies", "30KB, 11 tools".
+- "raw CDP" → "CDP over one thin client (`chrome-remote-interface`); no Playwright, no Puppeteer". There was always a CDP client; there was never a browser binary.
+- README gained a **Security Notes** section; AGENTS.md's was expanded with the real posture, including the prompt-injection warning.
+- Windows and Docker downgraded from "✅ Verified" to "supported, untested" — orphan-kill, process sampling and setup depend on `ps`/`which`.
+- `BENCHMARKS.md`'s stale v1 table was rewritten, and its "Roadmap to v2.0 (Monetization Path): paid Pro licence, CAPTCHA handling, proxy rotation" was removed: it contradicted the README's "No gating. No pro tier. No bait-and-switch." Either the roadmap or the promise was a lie. The promise stands.
+
 ## 4.0.1 — "Guest Mode"
 
 ### New: attach mode (`--attach-port` / `BWB_ATTACH_PORT`)
