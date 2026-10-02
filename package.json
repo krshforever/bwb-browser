@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test test/",
+    "test": "node --test test/*.test.mjs",
     "lint": "for f in server.mjs lib/*.mjs; do node --check \"$f\" || exit 1; done",
     "smoke": "node test/smoke.mjs",
     "test:browser": "node --test test/integration.mjs",
@@ -72,6 +72,6 @@
     "zod": "^3.22.0"
   },
   "devDependencies": {
-    "jsdom": "^30.1.1"
+    "jsdom": "^26.1.0"
   }
 }
