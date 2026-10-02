@@ -1,12 +1,12 @@
 # bwb-browser — Agent Integration Guide
 
 > **Author:** Krish Tiwari ([@krshforever](https://github.com/krshforever))
-> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · ~174KB source · 64 kB tarball · 26 tools · static-first (v4)
+> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · ~173KB source · 65 kB tarball · 26 tools · static-first (v4)
 > **Last updated:** 2026-08-06
 
 ## What is bwb?
 
-**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. ~174KB source. 26 tools. 5 runtime dependencies. Static-first: plain pages never spawn Chromium. Zero native dependencies.
+**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. ~173KB source. 26 tools. 5 runtime dependencies. Static-first: plain pages never spawn Chromium. Zero native dependencies.
 
 While other MCP browser tools ship a full browser binary (Playwright MCP = ~250MB, Puppeteer MCP = ~400MB), bwb speaks **Chrome DevTools Protocol (CDP)** directly — over one thin CDP client (`chrome-remote-interface`), no Playwright, no Puppeteer, no bundled browser. It auto-detects the browser already on your system.
 

@@ -73,7 +73,7 @@ A deep review of 4.0.1 found the two flagship features were silently wrong, and 
 
 ### Docs
 
-- Size numbers corrected everywhere (~174KB source, 64 kB tarball, 5 runtime dependencies) instead of "136KB", "zero-dependencies", "30KB, 11 tools".
+- Size numbers corrected everywhere (~173KB source, 65 kB tarball, 5 runtime dependencies) instead of "136KB", "zero-dependencies", "30KB, 11 tools".
 - "raw CDP" → "CDP over one thin client (`chrome-remote-interface`); no Playwright, no Puppeteer". There was always a CDP client; there was never a browser binary.
 - README gained a **Security Notes** section; AGENTS.md's was expanded with the real posture, including the prompt-injection warning.
 - Windows and Docker downgraded from "✅ Verified" to "supported, untested" — orphan-kill, process sampling and setup depend on `ps`/`which`.

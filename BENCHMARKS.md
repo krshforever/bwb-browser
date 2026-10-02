@@ -1,13 +1,13 @@
 # bwb-browser — Benchmarks & Comparison
 
-> **bwb**: ~174KB source, 64 kB tarball, 26 tools, 5 runtime dependencies, no bundled browser
+> **bwb**: ~173KB source, 65 kB tarball, 26 tools, 5 runtime dependencies, no bundled browser
 > Numbers refreshed for 4.0.2. Figures marked *(measured)* come from runs on the author's machine; anything else is an approximate published size and should be re-verified before you quote it.
 
 ## Size Comparison
 
 | Tool | Package size | Runtime deps | Browser engine | Termux? | Setup time |
 |------|--------------|--------------|----------------|---------|-----------|
-| **bwb-browser** | **64 kB** | **5** | CDP over a thin client | ✅ Native | **5 seconds** |
+| **bwb-browser** | **65 kB** | **5** | CDP over a thin client | ✅ Native | **5 seconds** |
 | Playwright MCP | 200+ MB | 30+ | Playwright (bundled Chromium) | ❌ | 5+ minutes |
 | Chrome DevTools MCP | 300+ MB | 50+ | Puppeteer | ❌ | 5+ minutes |
 | Puppeteer MCP | 400+ MB | 50+ | Puppeteer | ❌ | 5+ minutes |
@@ -71,7 +71,7 @@ Every other browser MCP needs one of: Playwright/Puppeteer (200–400MB), a proo
 - ✅ **Scraping** — article extraction with no browser at all
 - ✅ **Form automation** — native CDP input events, select-then-insert (no append)
 - ✅ **Screenshot pipelines** — full page, viewport, or one selector; newest 50 retained
-- ✅ **CI on Linux** — `npm test` (84 tests + a stdio smoke test) + `npm run smoke`, Node 18/20/22
+- ✅ **CI on Linux** — `npm test` (84 unit tests) + `npm run smoke` + `npm run test:browser` (21 checks against a real Chromium), Node 18/20/22
 
 ## Roadmap
 
