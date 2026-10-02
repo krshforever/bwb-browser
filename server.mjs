@@ -348,9 +348,16 @@ const tools = {
       const navigateInBrowser = async () => {
         const cdp = await getActiveProtocol();
         setPendingStatic(null);
-        const result = await gotoUrl(cdp.Page, cdp.Runtime, url, cfg.navTimeout, {
-          allowDomains: cfg.allowDomains || null,
-        });
+        let result;
+        try {
+          result = await gotoUrl(cdp.Page, cdp.Runtime, url, cfg.navTimeout, {
+            allowDomains: cfg.allowDomains || null,
+          });
+        } catch (err) {
+          // A failed navigation is DATA, not a protocol-level exception: the
+          // agent needs to read "ERR_NAME_NOT_RESOLVED", not a stack trace.
+          throw Object.assign(err, { isToolError: true });
+        }
         syncActiveTab(result.title, result.url);
         return { ...result, mode: "browser" };
       };
@@ -507,24 +514,35 @@ const tools = {
   // ═══════════════ INTERACTION ═══════════════
 
   browser_click: {
-    description: "Click an element by CSS selector. Uses CDP Input.dispatchMouseEvent for native events.",
+    description: "Click an element by CSS selector with native CDP mouse events. Scrolls it into view and hit-tests the click point first; the result reports `hit` (whether the point really was that element) and `landedOn` (what was actually there).",
     schema: { selector: z.string().describe("CSS selector") },
     handler: async ({ selector }) => {
       const cdp = await getActiveProtocol();
       const { Page, Runtime, Input } = cdp;
       const info = await clickElement(Page, Runtime, Input, selector);
-      return { content: [{ type: "text", text: JSON.stringify({ clicked: selector, tag: info.tag, text: info.text }) }] };
+      return { content: [{ type: "text", text: JSON.stringify({
+        clicked: selector, tag: info.tag, text: info.text,
+        hit: info.hit, landedOn: info.landedOn,
+        ...(info.hit === false ? { warning: "The click point was covered or off-screen — the click may have missed." } : {}),
+      }) }] };
     },
   },
 
   browser_fill: {
-    description: "Clear an input field and fill it with text using native CDP Input.insertText (fires the page's own input events). Returns the length only when the target looks like a password/token field.",
+    description: "Clear an input field and fill it with text using native CDP Input.insertText (fires the page's own input events). Existing content is selected first, so the field is replaced, not appended to. Returns the length only — never the text — when the target is a password field or looks like a secret.",
     schema: { selector: z.string().describe("CSS selector for input"), text: z.string().describe("Text to fill") },
     handler: async ({ selector, text }) => {
       const cdp = await getActiveProtocol();
       const { Page, Runtime, Input } = cdp;
-      await fillElement(Page, Runtime, Input, selector, text);
-      return { content: [{ type: "text", text: JSON.stringify({ filled: selector, ...redactIfSecret(selector, text) }) }] };
+      const info = await fillElement(Page, Runtime, Input, selector, text);
+      // Redact on what the FIELD is, not only what the selector is called:
+      // `#pw` is a password field just as much as `#password` is.
+      const secretField = info.type === "password" ||
+        /pass|secret|token|otp|pin|cvv|card/i.test(selector);
+      const echo = secretField
+        ? { length: [...String(text)].length, redacted: true }
+        : redactIfSecret(selector, text);
+      return { content: [{ type: "text", text: JSON.stringify({ filled: selector, ...echo }) }] };
     },
   },
 
@@ -891,13 +909,19 @@ const tools = {
   },
 
   browser_restart: {
-    description: "Cleanly restart the browser process. Useful for freeing memory, clearing state, or recovering from issues during long-running sessions.",
+    description: "Cleanly restart the browser process, then resume the page you were on. Use it to free memory, clear state, or recover from a wedged session. Cookies in the profile survive; in-page state does not.",
     schema: {},
     handler: async () => {
+      // An explicit restart is the agent asking for a fresh browser mid-task,
+      // not permission to forget which page the task was on. Re-queue the
+      // current URL so the next page tool lands back on it.
+      const active = listTabs().find((t) => t.active);
+      const resume = /^https?:/i.test(active?.url || "") ? active.url : null;
       clearTabs(); // Kill stale tab connections before restart
       cleanupWatch(); // Detach event listeners from the dying protocol before it's gone
       const result = await restartBrowser();
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      if (resume) setPendingStatic(resume, active.title);
+      return { content: [{ type: "text", text: JSON.stringify({ ...result, resuming: resume }) }] };
     },
   },
 };
@@ -953,6 +977,14 @@ for (const [name, tool] of Object.entries(tools)) {
     let result;
     try {
       result = await inner(args);
+    } catch (err) {
+      // Tools report failure as data. An exception here would arrive at the
+      // agent as a protocol error with no structured detail.
+      if (err?.isToolError || err?.name === "UrlPolicyError") {
+        result = errResult(err);
+      } else {
+        throw err;
+      }
     } finally {
       try { pokeActivity(); } catch {}
     }

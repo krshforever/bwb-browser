@@ -18,7 +18,8 @@
     "test": "node --test test/",
     "lint": "for f in server.mjs lib/*.mjs; do node --check \"$f\" || exit 1; done",
     "smoke": "node test/smoke.mjs",
-    "test:all": "npm run lint && npm test && npm run smoke"
+    "test:browser": "node --test test/integration.mjs",
+    "test:all": "npm run lint && npm test && npm run smoke && npm run test:browser"
   },
   "keywords": [
     "mcp",

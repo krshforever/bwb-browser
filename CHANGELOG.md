@@ -56,6 +56,9 @@ A deep review of 4.0.1 found the two flagship features were silently wrong, and 
 ### Changed / removed
 
 - `browser_export` lost `pdf` / `docx` / `pptx`. They reported success and wrote nothing; rather than ship a lie, the enum ends at md/txt/html, and writes are confined to the export directory with an extension allowlist and no silent overwrite.
+- `browser_restart` now resumes the page you were on, so a mid-task restart does not silently drop the agent back on `about:blank`.
+- `browser_click` reports `hit` and `landedOn`, and `browser_fill` redacts on what the *field* is (`type="password"`), not only on what the selector is called.
+- Navigation failures come back as tool data (`{error: "Navigation failed: net::ERR_..."}`) instead of a protocol-level exception with no structured detail.
 - `browser_fingerprint` no longer hardcodes `Chrome/126 … Linux x86_64`, which contradicted `navigator.platform` and `userAgentData` and made it *more* detectable on Termux ARM. The UA is derived from `Browser.getVersion()` with matching metadata. The docs no longer call this "not stealth mode" — it is the standard anti-detection patch set, intended for testing sites you own.
 - `browser_diagnose`'s score is documented as a heuristic, not a Lighthouse grade.
 - Screenshots get millisecond + random filenames, and the newest `BWB_SHOT_KEEP` (default 50) are kept.
@@ -65,6 +68,7 @@ A deep review of 4.0.1 found the two flagship features were silently wrong, and 
 
 - `npm test` was `node --check server.mjs && node --check lib/*.mjs`. `node --check` takes **one** file, so the shell expanded the second path and only the first was ever checked: a syntax error anywhere in `lib/` exited **0**. There were no tests at all.
 - Now: `npm test` → `node --test test/`, `npm run lint` (every file), `npm run smoke` (boots the real server over stdio — tool count, URL policy, export confinement, `--readonly`), and CI on Node 18/20/22 with a hard 26-tool gate.
+- `test/integration.mjs` (`npm run test:browser`) runs 21 checks against a **real** Chromium: the static→browser handoff, the sandbox flag on the live process, click hit-testing, fill replacement, watch idempotence and diagnose-does-not-kill-watch, tab hibernation, journal hygiene, `--allow-domains`, `--readonly`, restart-and-resume. It skips itself when no browser is installed, and CI runs it on `ubuntu-latest`.
 - `jsdom` is a devDependency for tests only. No new runtime dependency.
 
 ### Docs
