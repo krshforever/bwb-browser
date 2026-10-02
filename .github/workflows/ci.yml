@@ -20,6 +20,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      - run: npm run verify:docs
       - run: npm run smoke
 
   # The findings a code review could not settle: the static→browser handoff, the

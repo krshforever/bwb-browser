@@ -1,7 +1,7 @@
 {
   "name": "bwb-browser",
   "version": "4.1.0",
-  "description": "Browser Without Bloat — lightweight MCP server that gives AI agents browser superpowers. Static-first fetch ladder (Chromium only when JS demands it), lean profiles for Termux/1GB VPS, resource vigilance, tab journaling. Runs anywhere. Stays lean like air.",
+  "description": "Browser Without Bloat \u2014 lightweight MCP server that gives AI agents browser superpowers. Static-first fetch ladder (Chromium only when JS demands it), lean profiles for Termux/1GB VPS, resource vigilance, tab journaling. Runs anywhere. Stays lean like air.",
   "bin": {
     "bwb": "bin/bwb"
   },
@@ -19,7 +19,8 @@
     "lint": "for f in server.mjs lib/*.mjs; do node --check \"$f\" || exit 1; done",
     "smoke": "node test/smoke.mjs",
     "test:browser": "node --test test/integration.mjs",
-    "test:all": "npm run lint && npm test && npm run smoke && npm run test:browser"
+    "test:all": "npm run lint && npm test && npm run verify:docs && npm run smoke && npm run test:browser",
+    "verify:docs": "node scripts/verify-docs.mjs"
   },
   "keywords": [
     "mcp",
