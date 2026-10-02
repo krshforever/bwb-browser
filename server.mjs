@@ -82,7 +82,8 @@ function printHelp() {
  bwb-browser v${BWB_VERSION} — Browser Without Bloat
 
 Browser automation for AI agents. Static-first, lean like air. 26 tools.
-Raw CDP — no Playwright, no Puppeteer. Chromium starts only when JS demands it.
+CDP over one thin client — no Playwright, no Puppeteer, no bundled browser.
+Chromium starts only when JS demands it.
 
 Built on Termux/Android. Runs everywhere — including 1GB VPS boxes.
 
