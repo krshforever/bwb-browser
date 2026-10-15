@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bwb — Browser Without Bloat</title>
+<meta name="description" content="Browser Without Bloat — 65 kB MCP browser server. Static-first: Chromium starts only when JS demands it. Runs on Termux, a 1GB VPS, your Raspberry Pi.">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg-raise: #101018;
+    --line: #1d1d2a;
+    --text: #e8e9f0;
+    --muted: #9a9bb0;
+    --faint: #62637a;
+    --cyan: #22d3ee;
+    --violet: #a78bfa;
+    --accent: linear-gradient(100deg, var(--cyan), var(--violet));
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --maxw: 1080px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  ::selection { background: rgba(167,139,250,.35); }
+  a { color: var(--cyan); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+  section { position: relative; }
+
+  /* ---------- aurora ---------- */
+  .aurora { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  .aurora i {
+    position: absolute; display: block; border-radius: 50%;
+    filter: blur(90px); opacity: .30;
+    will-change: transform;
+  }
+  .aurora i:nth-child(1) {
+    width: 52vw; height: 52vw; left: -12vw; top: -18vw;
+    background: radial-gradient(circle at 40% 40%, #22d3ee, transparent 65%);
+    animation: drift1 26s ease-in-out infinite alternate;
+  }
+  .aurora i:nth-child(2) {
+    width: 46vw; height: 46vw; right: -14vw; top: -8vw;
+    background: radial-gradient(circle at 60% 40%, #a78bfa, transparent 65%);
+    animation: drift2 32s ease-in-out infinite alternate;
+  }
+  .aurora i:nth-child(3) {
+    width: 40vw; height: 40vw; left: 30vw; top: 42vh;
+    background: radial-gradient(circle at 50% 50%, #6366f1, transparent 68%);
+    opacity: .18;
+    animation: drift3 38s ease-in-out infinite alternate;
+  }
+  @keyframes drift1 { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(8vw,6vh,0) scale(1.12); } }
+  @keyframes drift2 { from { transform: translate3d(0,0,0) scale(1.05); } to { transform: translate3d(-7vw,9vh,0) scale(.92); } }
+  @keyframes drift3 { from { transform: translate3d(0,0,0) scale(.95); } to { transform: translate3d(-6vw,-8vh,0) scale(1.15); } }
+  .grain {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: .35;
+    background-image: radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px);
+    background-size: 3px 3px;
+  }
+  main { position: relative; z-index: 2; }
+
+  /* ---------- nav ---------- */
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    background: rgba(10,10,15,.72);
+    border-bottom: 1px solid var(--line);
+  }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .brand { font-family: var(--mono); font-weight: 700; letter-spacing: .02em; display: flex; align-items: center; gap: 10px; }
+  .brand .dot {
+    width: 10px; height: 10px; border-radius: 3px; background: var(--accent);
+    box-shadow: 0 0 14px rgba(34,211,238,.6);
+  }
+  .brand span { background: var(--accent); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  nav .links { display: flex; gap: 22px; font-size: 14px; }
+  nav .links a { color: var(--muted); }
+  nav .links a:hover { color: var(--text); text-decoration: none; }
+  @media (max-width: 720px) { nav .links { display: none; } }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 118px 0 90px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 7px 14px; background: rgba(255,255,255,.02);
+  }
+  .pill b { color: var(--text); font-weight: 600; }
+  h1 {
+    font-size: clamp(2.9rem, 7.4vw, 5.2rem);
+    line-height: 1.02; letter-spacing: -.035em; font-weight: 800;
+    margin: 26px 0 0;
+  }
+  h1 .grad { background: var(--accent); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero .sub {
+    margin: 24px 0 0; max-width: 620px;
+    font-size: clamp(1.05rem, 2vw, 1.28rem); color: var(--muted);
+  }
+  .hero .sub b { color: var(--text); font-weight: 600; }
+  .install {
+    margin-top: 36px; display: inline-flex; align-items: center; gap: 14px;
+    font-family: var(--mono); font-size: 14.5px;
+    border: 1px solid var(--line); border-radius: 12px;
+    background: var(--bg-raise); padding: 14px 18px;
+    box-shadow: 0 0 0 1px rgba(34,211,238,.05), 0 18px 50px -24px rgba(34,211,238,.25);
+    cursor: pointer; position: relative; overflow: hidden;
+  }
+  .install .p { color: var(--faint); user-select: none; }
+  .install code { color: var(--cyan); }
+  .install .copy { color: var(--faint); font-size: 12px; border-left: 1px solid var(--line); padding-left: 14px; }
+  .install:hover { border-color: #2c2c40; }
+  .install.copied .copy { color: var(--violet); }
+  .hero .cta { margin-top: 26px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 12px 22px; border-radius: 10px;
+    font-weight: 600; font-size: 15px; border: 1px solid transparent;
+  }
+  .btn.primary { background: var(--accent); color: #0a0a0f; }
+  .btn.primary:hover { text-decoration: none; filter: brightness(1.08); }
+  .btn.ghost { border-color: var(--line); color: var(--text); }
+  .btn.ghost:hover { text-decoration: none; border-color: #34344a; background: rgba(255,255,255,.03); }
+  .stats { margin-top: 64px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .stats div { background: var(--bg); padding: 22px 20px; }
+  .stats .n { font-family: var(--mono); font-size: clamp(1.5rem, 3vw, 2.1rem); font-weight: 700; letter-spacing: -.02em; background: var(--accent); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .stats .l { color: var(--faint); font-size: 12.5px; text-transform: uppercase; letter-spacing: .12em; margin-top: 4px; }
+  @media (max-width: 760px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+
+  /* ---------- reveal ---------- */
+  .reveal { opacity: 0; transform: translateY(26px); transition: opacity .55s ease, transform .55s cubic-bezier(.2,.7,.3,1); }
+  .reveal.in { opacity: 1; transform: none; }
+  .hero .reveal { transition-delay: var(--d, 0s); }
+
+  /* ---------- sections ---------- */
+  .sec { padding: 96px 0; border-top: 1px solid var(--line); }
+  .kicker { font-family: var(--mono); font-size: 12.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--violet); margin: 0 0 14px; }
+  h2 { font-size: clamp(1.9rem, 4.4vw, 2.9rem); line-height: 1.08; letter-spacing: -.03em; font-weight: 750; margin: 0 0 18px; max-width: 20ch; }
+  h2 .grad { background: var(--accent); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { color: var(--muted); max-width: 62ch; font-size: 1.06rem; }
+
+  /* problem */
+  .problem .big { font-size: clamp(1.4rem, 3.4vw, 2.1rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.25; max-width: 26ch; }
+  .problem .big em { font-style: normal; background: var(--accent); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .problem p { color: var(--muted); max-width: 58ch; margin-top: 20px; }
+  .bars { margin-top: 54px; display: grid; gap: 26px; max-width: 640px; }
+  .bar-row { display: grid; grid-template-columns: 150px 1fr 84px; align-items: center; gap: 16px; }
+  .bar-row .name { font-family: var(--mono); font-size: 13.5px; color: var(--muted); text-align: right; }
+  .bar-row .val { font-family: var(--mono); font-size: 13.5px; color: var(--faint); }
+  .track { height: 34px; border-radius: 8px; background: #14141d; border: 1px solid var(--line); overflow: hidden; position: relative; }
+  .track i {
+    display: block; height: 100%; width: 0; border-radius: 7px 0 0 7px;
+    background: linear-gradient(90deg, #2a2a3d, #3a3a52);
+    transition: width 1.1s cubic-bezier(.2,.7,.25,1);
+  }
+  .bar-row.us .track i { background: var(--accent); box-shadow: 0 0 24px rgba(34,211,238,.35); }
+  .bar-row.us .name, .bar-row.us .val { color: var(--text); }
+  .bar-row .val b { color: var(--cyan); font-weight: 600; }
+
+  /* ladder */
+  .ladder { margin-top: 54px; display: grid; gap: 0; max-width: 760px; }
+  .rung {
+    display: grid; grid-template-columns: 56px 1fr; gap: 20px;
+    padding: 26px 4px; position: relative;
+  }
+  .rung + .rung { border-top: 1px dashed var(--line); }
+  .rung .idx {
+    font-family: var(--mono); font-size: 13px; color: var(--faint);
+    width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line);
+    display: grid; place-items: center; background: var(--bg-raise);
+  }
+  .rung.hot .idx { border-color: rgba(167,139,250,.5); color: var(--violet); box-shadow: 0 0 20px -4px rgba(167,139,250,.5); }
+  .rung h3 { margin: 0 0 6px; font-size: 1.12rem; font-weight: 650; letter-spacing: -.01em; }
+  .rung p { margin: 0; color: var(--muted); font-size: .98rem; max-width: 58ch; }
+  .rung code { font-family: var(--mono); font-size: .88em; color: var(--cyan); background: rgba(34,211,238,.08); border: 1px solid rgba(34,211,238,.16); border-radius: 6px; padding: 1px 6px; }
+  .rung .ms { font-family: var(--mono); font-size: 12.5px; color: var(--faint); margin-top: 10px; display: block; }
+  .rung .ms b { color: var(--cyan); font-weight: 600; }
+  .callout {
+    margin-top: 34px; border-left: 2px solid; border-image: linear-gradient(180deg, var(--cyan), var(--violet)) 1;
+    padding: 4px 0 4px 18px; color: var(--muted); max-width: 60ch;
+  }
+  .callout b { color: var(--text); }
+
+  /* vigilance */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 48px; }
+  @media (max-width: 820px) { .grid2 { grid-template-columns: 1fr; } }
+  .card {
+    border: 1px solid var(--line); border-radius: 14px; padding: 24px;
+    background: linear-gradient(180deg, rgba(255,255,255,.025), rgba(255,255,255,0));
+    transition: border-color .3s ease, transform .3s ease;
+  }
+  .card:hover { border-color: #33334a; transform: translateY(-2px); }
+  .card h3 { margin: 0 0 8px; font-size: 1.05rem; font-weight: 650; display: flex; align-items: baseline; gap: 10px; }
+  .card h3 code { font-family: var(--mono); font-size: .9rem; font-weight: 600; background: var(--accent); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .card p { margin: 0; color: var(--muted); font-size: .96rem; }
+  .badges { margin-top: 26px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .badge {
+    font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px; background: rgba(255,255,255,.02);
+  }
+  .badge b { color: var(--text); font-weight: 600; }
+
+  /* table */
+  .tablewrap { margin-top: 48px; overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; }
+  table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: .95rem; }
+  th, td { padding: 15px 18px; text-align: left; border-bottom: 1px solid var(--line); }
+  thead th { font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); background: var(--bg-raise); font-weight: 600; }
+  thead th.us { background: linear-gradient(100deg, rgba(34,211,238,.12), rgba(167,139,250,.12)); color: var(--text); }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr { transition: background .25s ease; }
+  tbody tr:hover { background: rgba(255,255,255,.02); }
+  td.factor { color: var(--muted); }
+  td.us { background: rgba(34,211,238,.045); color: var(--text); font-weight: 550; }
+  td.no { color: var(--faint); }
+
+  /* footer */
+  footer { border-top: 1px solid var(--line); padding: 56px 0 72px; color: var(--muted); }
+  footer .row { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; align-items: flex-end; }
+  footer .tag { font-size: clamp(1.2rem, 2.6vw, 1.6rem); font-weight: 700; color: var(--text); letter-spacing: -.02em; }
+  footer .tag em { font-style: normal; background: var(--accent); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  footer .links { display: flex; gap: 20px; font-size: 14px; font-family: var(--mono); }
+  footer .meta { margin-top: 34px; font-family: var(--mono); font-size: 12.5px; color: var(--faint); }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .aurora i { animation: none !important; }
+    .reveal { opacity: 1; transform: none; transition: none; }
+    .track i { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="grain" aria-hidden="true"></div>
+
+<nav>
+  <div class="wrap">
+    <div class="brand"><span class="dot" aria-hidden="true"></span><span>bwb</span></div>
+    <div class="links">
+      <a href="#ladder">The Ladder</a>
+      <a href="#vigilance">Vigilance</a>
+      <a href="#tools">Tools</a>
+      <a href="#compare">Compare</a>
+      <a href="https://github.com/krshforever/bwb-browser">GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+  <!-- 1. HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="pill reveal" style="--d:.05s">v4.1.0 · <b>26 tools</b> · MIT · zero native modules</div>
+      <h1>
+        <span class="reveal" style="--d:.12s;display:inline-block">Browser</span><br>
+        <span class="reveal grad" style="--d:.22s;display:inline-block">Without</span>
+        <span class="reveal" style="--d:.32s;display:inline-block">Bloat</span>
+      </h1>
+      <p class="sub reveal" style="--d:.42s">
+        A <b>65 kB</b> MCP server that gives any AI agent browser superpowers.
+        Static-first: <b>Chromium starts only when JavaScript demands it.</b>
+        Runs on your phone, and survives it too.
+      </p>
+      <div class="install reveal" style="--d:.52s" id="install" title="Copy to clipboard" role="button" tabindex="0">
+        <span class="p">$</span><code>npm install -g bwb-browser</code>
+        <span class="copy" id="copyLabel">click to copy</span>
+      </div>
+      <div class="cta reveal" style="--d:.6s">
+        <a class="btn primary" href="https://github.com/krshforever/bwb-browser">Star on GitHub</a>
+        <a class="btn ghost" href="https://www.npmjs.com/package/bwb-browser">npm ↗</a>
+      </div>
+      <div class="stats reveal" style="--d:.72s">
+        <div><div class="n">65 kB</div><div class="l">Published tarball</div></div>
+        <div><div class="n">~62 MB</div><div class="l">Total install · zero browsers</div></div>
+        <div><div class="n">26</div><div class="l">Tools · 5 runtime deps</div></div>
+        <div><div class="n">Termux ✅</div><div class="l">Verified on Android</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. PROBLEM -->
+  <section class="sec problem">
+    <div class="wrap">
+      <p class="kicker reveal">The problem</p>
+      <div class="big reveal">Every other MCP browser ships <em>a browser binary</em>.</div>
+      <p class="reveal">
+        Playwright MCP? ~250MB. Puppeteer MCP? ~400MB. bwb speaks the Chrome DevTools Protocol
+        directly — over one thin CDP client, no Playwright, no Puppeteer, no bundled browser.
+        It drives the Chrome you already have. No downloads. No binary mismatches.
+      </p>
+      <div class="bars reveal">
+        <div class="bar-row us">
+          <div class="name">bwb</div>
+          <div class="track"><i data-w="6"></i></div>
+          <div class="val"><b>~62 MB</b></div>
+        </div>
+        <div class="bar-row">
+          <div class="name">Playwright MCP</div>
+          <div class="track"><i data-w="50"></i></div>
+          <div class="val">~250 MB</div>
+        </div>
+        <div class="bar-row">
+          <div class="name">Puppeteer MCP</div>
+          <div class="track"><i data-w="80"></i></div>
+          <div class="val">~400 MB</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. LADDER -->
+  <section class="sec" id="ladder">
+    <div class="wrap">
+      <p class="kicker reveal">Static-first · v4</p>
+      <h2 class="reveal">The browser starts <span class="grad">only when it must</span>.</h2>
+      <p class="lede reveal">
+        Every request descends a ladder. Most pages never leave the first rung —
+        so a plain README fetch never wakes Chromium at all.
+      </p>
+      <div class="ladder reveal">
+        <div class="rung">
+          <div class="idx">1</div>
+          <div>
+            <h3>Fetch the page directly</h3>
+            <p>One HTTP GET. No browser process, no CDP socket, no renderer.</p>
+            <span class="ms">cost · <b>~0 MB</b></span>
+          </div>
+        </div>
+        <div class="rung">
+          <div class="idx">2</div>
+          <div>
+            <h3>Extract the text in-process</h3>
+            <p>Readability + linkedom pull the content out. <code>mode: "static"</code> returns in milliseconds.</p>
+            <span class="ms">cost · <b>~0 MB Chromium</b></span>
+          </div>
+        </div>
+        <div class="rung">
+          <div class="idx">3</div>
+          <div>
+            <h3>Escalate — only if JS demands it</h3>
+            <p>Scripts, hydration, or interaction required? Chromium boots and the URL is carried across. <code>mode: "browser"</code>, with the reason.</p>
+            <span class="ms">cost · on demand</span>
+          </div>
+        </div>
+        <div class="rung hot">
+          <div class="idx">4</div>
+          <div>
+            <h3>Dead URLs never spawn anything</h3>
+            <p>A 404 errors on the static rung. No browser process is ever created for it.</p>
+            <span class="ms">cost · <b>zero</b></span>
+          </div>
+        </div>
+      </div>
+      <p class="callout reveal">
+        Measured on-device: a single YouTube tab costs <b>746 MB</b> of Chromium tree.
+        That is why the ladder exists.
+      </p>
+    </div>
+  </section>
+
+  <!-- 4. VIGILANCE -->
+  <section class="sec" id="vigilance">
+    <div class="wrap">
+      <p class="kicker reveal">Vigilance &amp; survival</p>
+      <h2 class="reveal">Built to be <span class="grad">killed</span> — and come back.</h2>
+      <p class="lede reveal">
+        Android's out-of-memory killer ate whole Termux sessions. So bwb watches itself:
+        it sheds load before the OS does, journals everything, and tells your agent exactly what it did.
+      </p>
+      <div class="grid2">
+        <div class="card reveal">
+          <h3><code>[bwb resources]</code> on every response</h3>
+          <p>MCP + Chromium MB, tab count, ok / watch / critical. The footer is the contract — read it before spawning more work.</p>
+        </div>
+        <div class="card reveal">
+          <h3>Hibernation, then honesty</h3>
+          <p>On critical pressure bwb hibernates tabs itself, journals them, and tears down only after two consecutive critical samples — never mid-watch.</p>
+        </div>
+        <div class="card reveal">
+          <h3>Tabs resurrect from the journal</h3>
+          <p>Kills become resume points, not disasters. The journal stores origin + path only — OAuth callbacks and reset tokens never land on disk.</p>
+        </div>
+        <div class="card reveal">
+          <h3>Survival profile <code>--lean</code></h3>
+          <p>Auto-on Termux: capped renderers, 3-tab cap, 5-minute mayfly teardown, 256 MB JS heap. Runs on a 1 GB VPS.</p>
+        </div>
+      </div>
+      <div class="badges reveal">
+        <span class="badge">Termux / Android · <b>verified</b></span>
+        <span class="badge">Linux · <b>verified</b></span>
+        <span class="badge">macOS · <b>verified</b></span>
+        <span class="badge">1 GB VPS</span>
+        <span class="badge">Raspberry Pi</span>
+        <span class="badge">CI · Node 18/20/22</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. TOOLS -->
+  <section class="sec" id="tools">
+    <div class="wrap">
+      <p class="kicker reveal">Standout tools</p>
+      <h2 class="reveal">The four that <span class="grad">actually matter</span>.</h2>
+      <div class="grid2">
+        <div class="card reveal">
+          <h3><code>browser_act</code></h3>
+          <p>Natural language interaction — “search for X”, “click the button”. Pure DOM heuristics, no LLM dependency. Scores, measures and scrolls elements instead of guessing; ambiguous labels return <code>candidates</code>; destructive clicks need <code>force:true</code>.</p>
+        </div>
+        <div class="card reveal">
+          <h3><code>browser_watch</code></h3>
+          <p>Live console, network, exception and navigation streaming — the only MCP browser that lets your agent <em>listen</em> to a page. Debug SPAs, catch React errors, see the API calls.</p>
+        </div>
+        <div class="card reveal">
+          <h3><code>browser_diagnose</code></h3>
+          <p>Lighthouse for your agent: load timings, console errors, broken images, interaction counts and a heuristic health score. Self-diagnosis instead of guessing.</p>
+        </div>
+        <div class="card reveal">
+          <h3>Sessions &amp; screenshots</h3>
+          <p>Login once, agent works for days — cookies persist across restarts (<code>600</code> on disk). Element-level screenshots: one form, one chart, one card — not the whole page.</p>
+        </div>
+      </div>
+      <p class="callout reveal">
+        Works with anything that speaks MCP: <b>Claude Code, OpenCode, Antigravity CLI, Cline,
+        Continue.dev, Aider, Codex CLI, Cody, Windsurf, Cursor.</b>
+      </p>
+    </div>
+  </section>
+
+  <!-- 6. COMPARISON -->
+  <section class="sec" id="compare">
+    <div class="wrap">
+      <p class="kicker reveal">Head to head</p>
+      <h2 class="reveal">The <span class="grad">honest</span> table.</h2>
+      <div class="tablewrap reveal">
+        <table>
+          <thead>
+            <tr>
+              <th>Factor</th>
+              <th class="us">bwb v4</th>
+              <th>Playwright MCP</th>
+              <th>Puppeteer MCP</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="factor">Source size</td><td class="us">~173 KB</td><td class="no">~50 MB+</td><td class="no">~100 MB+</td></tr>
+            <tr><td class="factor">Published tarball</td><td class="us">65 kB</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td class="factor">Total install (npm)</td><td class="us">~62 MB, zero browsers</td><td class="no">~250 MB</td><td class="no">~400 MB</td></tr>
+            <tr><td class="factor">Bundled browser</td><td class="us">None</td><td class="no">Chromium (~200 MB)</td><td class="no">Chromium (~300 MB)</td></tr>
+            <tr><td class="factor">Chromium spawns for plain pages</td><td class="us">Never (static-first)</td><td class="no">Always</td><td class="no">Always</td></tr>
+            <tr><td class="factor">Works on Termux / Android</td><td class="us">✅ Yes</td><td class="no">❌</td><td class="no">❌</td></tr>
+            <tr><td class="factor">Survives 1 GB RAM / phone OOM</td><td class="us">✅ Lean profile + vigilance</td><td class="no">❌</td><td class="no">❌</td></tr>
+            <tr><td class="factor">Zero native deps</td><td class="us">✅ Yes</td><td class="no">❌</td><td class="no">❌</td></tr>
+            <tr><td class="factor">Runtime dependencies</td><td class="us">5</td><td class="no">many</td><td class="no">many</td></tr>
+            <tr><td class="factor">Live event streaming</td><td class="us">✅</td><td class="no">❌</td><td class="no">❌</td></tr>
+            <tr><td class="factor">Natural language interaction</td><td class="us">✅</td><td class="no">❌</td><td class="no">❌</td></tr>
+            <tr><td class="factor">Persistent sessions</td><td class="us">✅</td><td class="no">❌</td><td class="no">❌</td></tr>
+            <tr><td class="factor">CPU profile at idle</td><td class="us">Mayfly teardown (Termux)</td><td class="no">🐌</td><td class="no">🐌</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- 7. FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="row">
+      <div>
+        <div class="tag">Runs on <em>your phone</em>. MIT, forever.</div>
+        <p style="max-width:56ch;margin:12px 0 0">
+          Built on a phone, on a train, in India — against the hardest constraint first:
+          a memory-pressured device where every megabyte is contested. Constraints are features.
+        </p>
+      </div>
+      <div class="links">
+        <a href="https://github.com/krshforever/bwb-browser">GitHub ↗</a>
+        <a href="https://www.npmjs.com/package/bwb-browser">npm ↗</a>
+        <a href="https://github.com/sponsors/krshforever">Sponsor ↗</a>
+      </div>
+    </div>
+    <div class="meta">MIT — Krish Tiwari (<a href="https://github.com/krshforever">@krshforever</a>) · bwb-browser v4.1.0 · this page: one file, zero requests</div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // scroll reveals + bar animation, one observer
+  var bars = document.querySelectorAll(".track i");
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (!e.isIntersecting) return;
+      e.target.classList.add("in");
+      bars.forEach(function (b) { b.style.width = b.getAttribute("data-w") + "%"; });
+      io.unobserve(e.target);
+    });
+  }, { threshold: 0.16, rootMargin: "0px 0px -8% 0px" });
+  document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
+  if (reduced) { bars.forEach(function (b) { b.style.width = b.getAttribute("data-w") + "%"; }); }
+
+  // copy install line
+  var inst = document.getElementById("install");
+  var label = document.getElementById("copyLabel");
+  function copy() {
+    var done = function () {
+      label.textContent = "copied ✓";
+      inst.classList.add("copied");
+      setTimeout(function () { label.textContent = "click to copy"; inst.classList.remove("copied"); }, 1600);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText("npm install -g bwb-browser").then(done, done);
+    } else { done(); }
+  }
+  inst.addEventListener("click", copy);
+  inst.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); copy(); } });
+})();
+</script>
+
+</body>
+</html>
