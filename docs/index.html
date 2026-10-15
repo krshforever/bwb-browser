@@ -537,6 +537,9 @@
     ta.value = CMD;
     ta.setAttribute("readonly", "");
     ta.style.position = "fixed";
+    ta.style.left = "0";
+    ta.style.top = "0";
+    ta.style.fontSize = "16px"; // iOS Safari zooms/keyboard-hijacks below 16px
     ta.style.opacity = "0";
     document.body.appendChild(ta);
     ta.select();
@@ -549,10 +552,10 @@
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(CMD).then(
         function () { flash("copied ✓", true); },
-        function () { flash(legacyCopy() ? "copied ✓" : "copy failed — select manually", legacyCopy()); }
+        function () { var ok = legacyCopy(); flash(ok ? "copied ✓" : "copy failed — select manually", ok); }
       );
     } else {
-      flash(legacyCopy() ? "copied ✓" : "copy failed — select manually", legacyCopy());
+      var ok = legacyCopy(); flash(ok ? "copied ✓" : "copy failed — select manually", ok);
     }
   }
   inst.addEventListener("click", copy);
