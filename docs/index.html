@@ -238,9 +238,12 @@
     .reveal { opacity: 1; transform: none; transition: none; }
     .track i { transition: none; }
   }
+  noscript .reveal { opacity: 1; transform: none; }
 </style>
 </head>
 <body>
+
+<noscript><style>.reveal{opacity:1;transform:none;}</style></noscript>
 
 <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
 <div class="grain" aria-hidden="true"></div>
@@ -266,15 +269,14 @@
       <div class="pill reveal" style="--d:.05s">v4.1.0 · <b>26 tools</b> · MIT · zero native modules</div>
       <h1>
         <span class="reveal" style="--d:.12s;display:inline-block">Browser</span><br>
-        <span class="reveal grad" style="--d:.22s;display:inline-block">Without</span>
-        <span class="reveal" style="--d:.32s;display:inline-block">Bloat</span>
+        <span class="reveal grad" style="--d:.22s;display:inline-block">Without Bloat</span>
       </h1>
       <p class="sub reveal" style="--d:.42s">
         A <b>65 kB</b> MCP server that gives any AI agent browser superpowers.
         Static-first: <b>Chromium starts only when JavaScript demands it.</b>
         Runs on your phone, and survives it too.
       </p>
-      <div class="install reveal" style="--d:.52s" id="install" title="Copy to clipboard" role="button" tabindex="0">
+      <div class="install reveal" style="--d:.52s" id="install" role="button" aria-label="Copy install command to clipboard" title="Copy to clipboard" tabindex="0">
         <span class="p">$</span><code>npm install -g bwb-browser</code>
         <span class="copy" id="copyLabel">click to copy</span>
       </div>
@@ -502,31 +504,56 @@
   "use strict";
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // scroll reveals + bar animation, one observer
+  // scroll reveals + bar animation, one observer.
+  // Bars must only fill when their OWN container intersects — any earlier
+  // .reveal would otherwise fill them before the section is reached.
   var bars = document.querySelectorAll(".track i");
+  var barWrap = document.querySelector(".bars");
+  var fill = function () { bars.forEach(function (b) { b.style.width = b.getAttribute("data-w") + "%"; }); };
   var io = new IntersectionObserver(function (entries) {
     entries.forEach(function (e) {
       if (!e.isIntersecting) return;
       e.target.classList.add("in");
-      bars.forEach(function (b) { b.style.width = b.getAttribute("data-w") + "%"; });
+      if (e.target === barWrap) fill();
       io.unobserve(e.target);
     });
   }, { threshold: 0.16, rootMargin: "0px 0px -8% 0px" });
   document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
-  if (reduced) { bars.forEach(function (b) { b.style.width = b.getAttribute("data-w") + "%"; }); }
+  if (reduced) { fill(); }
 
-  // copy install line
+  // copy install line — never claim success without a real copy. On
+  // non-secure origins navigator.clipboard is undefined, so fall back to
+  // the execCommand path and report a real failure if that fails too.
   var inst = document.getElementById("install");
   var label = document.getElementById("copyLabel");
+  var CMD = "npm install -g bwb-browser";
+  function flash(text, ok) {
+    label.textContent = text;
+    inst.classList.toggle("copied", !!ok);
+    setTimeout(function () { label.textContent = "click to copy"; inst.classList.remove("copied"); }, 1600);
+  }
+  function legacyCopy() {
+    var ta = document.createElement("textarea");
+    ta.value = CMD;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
   function copy() {
-    var done = function () {
-      label.textContent = "copied ✓";
-      inst.classList.add("copied");
-      setTimeout(function () { label.textContent = "click to copy"; inst.classList.remove("copied"); }, 1600);
-    };
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText("npm install -g bwb-browser").then(done, done);
-    } else { done(); }
+      navigator.clipboard.writeText(CMD).then(
+        function () { flash("copied ✓", true); },
+        function () { flash(legacyCopy() ? "copied ✓" : "copy failed — select manually", legacyCopy()); }
+      );
+    } else {
+      flash(legacyCopy() ? "copied ✓" : "copy failed — select manually", legacyCopy());
+    }
   }
   inst.addEventListener("click", copy);
   inst.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); copy(); } });
