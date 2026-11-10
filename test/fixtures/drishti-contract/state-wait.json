@@ -1,0 +1,19 @@
+{
+  "contract": 1,
+  "name": "state-wait",
+  "request": {
+    "method": "GET",
+    "path": "/bwb/state?wait=8",
+    "headers": {
+      "X-BWB-Token": "0123456789abcdef0123456789abcdef"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "mode": "AGENT",
+      "help": null
+    }
+  }
+}

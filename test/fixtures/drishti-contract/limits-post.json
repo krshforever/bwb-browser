@@ -1,0 +1,21 @@
+{
+  "contract": 1,
+  "name": "limits-post",
+  "request": {
+    "method": "POST",
+    "path": "/bwb/limits",
+    "headers": {
+      "X-BWB-Token": "0123456789abcdef0123456789abcdef"
+    },
+    "body": {
+      "idle_disconnect_sec": 10
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "idle_disconnect_sec": 10,
+      "relay_off_sec": 0
+    }
+  }
+}

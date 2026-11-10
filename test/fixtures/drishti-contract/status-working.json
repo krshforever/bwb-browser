@@ -1,0 +1,20 @@
+{
+  "contract": 1,
+  "name": "status-working",
+  "request": {
+    "method": "POST",
+    "path": "/bwb/status",
+    "headers": {
+      "X-BWB-Token": "0123456789abcdef0123456789abcdef"
+    },
+    "body": {
+      "step": "Clicking #submit",
+      "tool": "browser_click",
+      "state": "working"
+    }
+  },
+  "response": {
+    "status": 204,
+    "json": null
+  }
+}

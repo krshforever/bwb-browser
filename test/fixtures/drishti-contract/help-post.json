@@ -1,0 +1,22 @@
+{
+  "contract": 1,
+  "name": "help-post",
+  "request": {
+    "method": "POST",
+    "path": "/bwb/help",
+    "headers": {
+      "X-BWB-Token": "0123456789abcdef0123456789abcdef"
+    },
+    "body": {
+      "kind": "site",
+      "reason": "Approve demoqa.com?",
+      "domain": "demoqa.com"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "help_17f3a2"
+    }
+  }
+}

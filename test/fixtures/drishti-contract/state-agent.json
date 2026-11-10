@@ -1,0 +1,19 @@
+{
+  "contract": 1,
+  "name": "state-agent",
+  "request": {
+    "method": "GET",
+    "path": "/bwb/state",
+    "headers": {
+      "X-BWB-Token": "0123456789abcdef0123456789abcdef"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "mode": "AGENT",
+      "help": null
+    }
+  }
+}

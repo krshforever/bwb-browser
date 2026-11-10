@@ -1,0 +1,20 @@
+{
+  "contract": 1,
+  "name": "tab-unsupported",
+  "request": {
+    "method": "POST",
+    "path": "/bwb/tab",
+    "headers": {
+      "X-BWB-Token": "0123456789abcdef0123456789abcdef"
+    },
+    "body": {
+      "url": "https://example.com"
+    }
+  },
+  "response": {
+    "status": 501,
+    "json": {
+      "error": "tab creation is not wired in this build"
+    }
+  }
+}

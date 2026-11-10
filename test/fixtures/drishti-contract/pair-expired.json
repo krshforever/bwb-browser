@@ -1,0 +1,16 @@
+{
+  "contract": 1,
+  "name": "pair-expired",
+  "request": {
+    "method": "GET",
+    "path": "/bwb/pair?code=7QK2M9XA",
+    "headers": {},
+    "body": null
+  },
+  "response": {
+    "status": 410,
+    "json": {
+      "status": "expired"
+    }
+  }
+}

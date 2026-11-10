@@ -1,0 +1,34 @@
+{
+  "contract": 1,
+  "name": "hello-paired",
+  "request": {
+    "method": "GET",
+    "path": "/bwb/hello",
+    "headers": {},
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "app": "drishti",
+      "version": "1.0.0",
+      "contract": 1,
+      "paired": true,
+      "capabilities": [
+        "core",
+        "history",
+        "downloads",
+        "tabs",
+        "network",
+        "cookies_meta",
+        "emulation",
+        "upload",
+        "clipboard"
+      ],
+      "limits": {
+        "idle_disconnect_sec": 900,
+        "relay_off_sec": 0
+      }
+    }
+  }
+}

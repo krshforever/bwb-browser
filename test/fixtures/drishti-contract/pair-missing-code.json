@@ -1,0 +1,16 @@
+{
+  "contract": 1,
+  "name": "pair-missing-code",
+  "request": {
+    "method": "GET",
+    "path": "/bwb/pair",
+    "headers": {},
+    "body": null
+  },
+  "response": {
+    "status": 400,
+    "json": {
+      "error": "Missing code parameter"
+    }
+  }
+}

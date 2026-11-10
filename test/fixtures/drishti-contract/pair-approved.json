@@ -1,0 +1,17 @@
+{
+  "contract": 1,
+  "name": "pair-approved",
+  "request": {
+    "method": "GET",
+    "path": "/bwb/pair?code=7QK2M9XA",
+    "headers": {},
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "status": "approved",
+      "token": "0123456789abcdef0123456789abcdef"
+    }
+  }
+}

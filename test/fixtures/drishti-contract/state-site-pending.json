@@ -1,0 +1,25 @@
+{
+  "contract": 1,
+  "name": "state-site-pending",
+  "request": {
+    "method": "GET",
+    "path": "/bwb/state",
+    "headers": {
+      "X-BWB-Token": "0123456789abcdef0123456789abcdef"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "mode": "USER",
+      "help": {
+        "id": "help_17f3a2",
+        "kind": "site",
+        "reason": "Approve demoqa.com?",
+        "domain": "demoqa.com",
+        "status": "pending"
+      }
+    }
+  }
+}

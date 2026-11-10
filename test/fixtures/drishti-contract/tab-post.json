@@ -1,0 +1,20 @@
+{
+  "contract": 1,
+  "name": "tab-post",
+  "request": {
+    "method": "POST",
+    "path": "/bwb/tab",
+    "headers": {
+      "X-BWB-Token": "0123456789abcdef0123456789abcdef"
+    },
+    "body": {
+      "url": "https://example.com"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "DB630DEA4F38B9519419837B5BFDF6DC"
+    }
+  }
+}

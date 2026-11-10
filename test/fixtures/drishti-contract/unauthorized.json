@@ -1,0 +1,16 @@
+{
+  "contract": 1,
+  "name": "unauthorized",
+  "request": {
+    "method": "GET",
+    "path": "/json/list",
+    "headers": {},
+    "body": null
+  },
+  "response": {
+    "status": 401,
+    "json": {
+      "error": "Unauthorized"
+    }
+  }
+}

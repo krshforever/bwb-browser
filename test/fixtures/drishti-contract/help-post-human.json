@@ -1,0 +1,21 @@
+{
+  "contract": 1,
+  "name": "help-post-human",
+  "request": {
+    "method": "POST",
+    "path": "/bwb/help",
+    "headers": {
+      "X-BWB-Token": "0123456789abcdef0123456789abcdef"
+    },
+    "body": {
+      "kind": "help",
+      "reason": "Log in to Gmail"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "id": "help_17f3a1"
+    }
+  }
+}
