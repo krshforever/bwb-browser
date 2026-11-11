@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased — drishti mode
+
+A first-class mode for driving [drishti](https://github.com/krshforever/drishti),
+the Android WebView browser, instead of treating it as a generic attach target.
+
+- **`lib/drishti.mjs`** — the app's control API (`/bwb/hello`, `pair`, `state`,
+  `status`, `help`, `tab`), the paired-token store, and `cdpOpts()`, used for
+  every CDP call. `alterPath` only touches `/json*`; WebSocket pathnames are
+  left alone (a `?` there gets percent-encoded and breaks the handshake).
+- **`--drishti` / `BWB_MODE=drishti` / auto-detect** from the paired store plus
+  `/bwb/hello`. `--no-drishti` forces it off. In this mode: attach only, always
+  browser, no tab cap, no idle teardown, no journal, no hibernation.
+- **`bwb pair` / `bwb unpair` / `bwb drishti`** — pairing CLI and a doctor that
+  names each broken link and how to fix it.
+- **Takeover is a pause, not an error.** USER-mode rejections wait for hand-back
+  and resume the same step. Blocked sites ask for approval and retry once.
+- **`needs_human`** — a 27th tool for logins, captchas, 2FA and payments.
+- **Step reporting** — plain-language POSTs to the app; never typed values.
+- **Tabs** — the human's tabs are registered `owned: false` and never closed.
+
+The wire format is now **BWB control contract v1**:
+[`docs/DRISHTI-CONTRACT.md`](docs/DRISHTI-CONTRACT.md), a verbatim copy of the
+drishti repo's `docs/BWB-CONTRACT.md`, with shared JSON fixtures in
+`test/fixtures/drishti-contract/` that both repos' tests assert against.
+
+Behaviour that changed to match it: pairing is a non-blocking poll
+(202/200/403/410) instead of one 60-second request; `/bwb/state` is long-polled
+with `?wait=N` and resumed on `mode == "AGENT"` plus a null-or-resolved `help`,
+instead of an `approvals[]` array and a `help.pending` flag that never existed;
+`/bwb/status` expects 204 and sends `state: working|idle|error`; approvals are
+read from the `help` object, so a denied site is a refusal rather than a
+timeout. The 800ms state probes in `browser_status` and tab selection are gone:
+a status snapshot is not allowed to block on a long-poll.
+
 ## 4.1.0 — "It was quietly doing the wrong thing"
 
 A deep review of 4.0.1 found the two flagship features were silently wrong, and that a handful of security holes mattered more than usual for a tool an LLM points at pages it does not control. This release is the fixes. Most of it is `Fixed`, because most of it was broken.

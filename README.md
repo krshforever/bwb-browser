@@ -1,6 +1,6 @@
 # bwb-browser
 
-**Browser Without Bloat** — ~173KB of source, 65 kB tarball. 26 tools. Static-first. Runs on your phone, survives it too.
+**Browser Without Bloat** — ~219KB of source, 65 kB tarball. 26 tools. Static-first. Runs on your phone, survives it too.
 
 A lightweight MCP server that gives any AI agent browser superpowers. Written by a guy in India on Termux because the existing tools were 200MB of "why" — then rewritten when Android kept killing those tools mid-run.
 
@@ -27,7 +27,7 @@ bwb speaks **Chrome DevTools Protocol (CDP)** — the protocol Chrome speaks nat
 
 | Factor | bwb v4 | Playwright MCP | Puppeteer MCP |
 |--------|-----|----------------|---------------|
-| Source size | **~173KB** | ~50MB+ | ~100MB+ |
+| Source size | **~219KB** | ~50MB+ | ~100MB+ |
 | Published tarball | **65 kB** | — | — |
 | Total install (npm) | **~62MB, zero browsers** | ~250MB | ~400MB |
 | Bundled browser | **None** | Chromium (~200MB) | Chromium (~300MB) |
@@ -191,7 +191,7 @@ bwb
 
 ---
 
-## All 26 Tools
+## All 27 Tools
 
 | Tool | Description |
 |------|-------------|
@@ -221,6 +221,63 @@ bwb
 | `browser_export` | Write md/txt/html into the export directory |
 | `browser_status` | Status + live resources + active profile |
 | `browser_restart` | Restart the browser |
+| `needs_human` | Hand the phone to the human (login, captcha, 2FA, payment) and wait for hand-back |
+
+---
+
+## Drishti Mode — a browser on your phone, with you in the loop
+
+[drishti](https://github.com/krshforever/drishti) is a tiny Android WebView
+browser that exposes CDP on `127.0.0.1:9222`. Drishti mode is the first-class
+way for bwb to drive it: no `--attach-port`, no proxy, no token on the command
+line.
+
+```bash
+# 1. Install drishti on the phone and turn its relay on
+# 2. Pair once — a code goes to the app, bwb polls once a second for 60s
+#    while you tap Allow
+bwb pair
+
+# 3. Nothing else: auto-detect sees the paired token + the app
+bwb
+```
+
+The wire format is [docs/DRISHTI-CONTRACT.md](docs/DRISHTI-CONTRACT.md) — a
+verbatim copy of the drishti repo's `docs/BWB-CONTRACT.md`, asserted by both
+test suites against the same JSON fixtures. On a build without the control API
+(the app answers 404), force the mode explicitly:
+
+```bash
+bwb --drishti
+```
+
+What the mode changes:
+
+- **Attach only.** It never launches Chromium, never kills anything, and never
+  journals or restores tabs.
+- **Your tabs stay yours.** bwb never closes or navigates a tab it did not open
+  (`owned: false` in `browser_listTabs`).
+- **Pairing is a poll, not a wait.** `GET /bwb/pair` answers immediately:
+  202 pending, 200 + token once, 403 denied, 410 expired. No request ever
+  blocks for a minute and races its own timeout.
+- **Takeover, not collision.** If you tap *Take control*, a blocked CDP command
+  makes bwb pause and long-poll `GET /bwb/state?wait=30` — one held request per
+  change instead of a hot loop — then resume the same step when you tap *Hand
+  back*.
+- **Site approval, not silent failure.** A host outside drishti's allowlist
+  triggers an approval prompt on the phone; bwb retries once after you approve.
+- **The phone shows what bwb is doing.** Every tool call posts a plain-language
+  step ("Clicking #submit"), never typed values or page content.
+- **`needs_human`** is the tool for logins, captchas, 2FA and payments. It asks
+  the app, then waits. bwb never tries to bypass them.
+
+```bash
+bwb drishti   # doctor: paired? app? token? tabs? control API?
+bwb unpair    # forget the token
+```
+
+The paired token lives in `~/.config/bwb/drishti.json` (0600). It is never
+printed, never put in a URL, and masked in `browser_status`.
 
 ---
 
@@ -264,7 +321,7 @@ Every browser automation tool assumes you have 400MB to spare and a desktop-clas
 
 bwb is engineered against the hardest constraint first: **a memory-pressured device where every megabyte is contested.** No bundled browser. No wrapper frameworks. Just CDP — the protocol Chrome speaks natively, over one thin client — plus a static-fetch ladder so Chromium only starts when JavaScript demands it. Mobile-first isn't a feature here. It's the design spec everything else has to survive.
 
-The result is ~173KB of source that does what 400MB of dependencies do. Not better code — less code, held to budgets: 26 tools max, 5 runtime dependencies, 65 kB tarball, zero native modules. Constraints are features. (The 4.1.0 correctness pass grew the source by ~50KB: a real URL policy, a real element-scoring engine, and the tests that keep them honest.)
+The result is ~219KB of source that does what 400MB of dependencies do. Not better code — less code, held to budgets: 26 tools max, 5 runtime dependencies, 65 kB tarball, zero native modules. Constraints are features. (The 4.1.0 correctness pass grew the source by ~50KB: a real URL policy, a real element-scoring engine, and the tests that keep them honest.)
 
 *— Krish Tiwari ([@krshforever](https://github.com/krshforever))*
 

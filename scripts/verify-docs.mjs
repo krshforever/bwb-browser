@@ -1,5 +1,5 @@
 /**
- * Cross-check every place the 26 tools are described against the code.
+ * Cross-check every place the 27 tools are described against the code.
  *
  * Descriptions are what an agent reads before calling a tool, and the docs are
  * what a human reads before trusting it. If they disagree, the agent is the one
@@ -35,7 +35,7 @@ await transport.close();
 console.log(`# ${tools.length} tools reported by the server\n`);
 
 // ── 1. The release gate ──────────────────────────────────────────────────────
-if (tools.length !== 26) fail(`tool count is ${tools.length}, the stated gate is 26`);
+if (tools.length !== 27) fail(`tool count is ${tools.length}, the stated gate is 27`);
 
 // ── 2. Every tool is documented in README and AGENTS ────────────────────────
 // Only table rows count as "documented as a tool". Prose and Breaking notes
