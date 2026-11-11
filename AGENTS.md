@@ -1,12 +1,12 @@
 # bwb-browser — Agent Integration Guide
 
 > **Author:** Krish Tiwari ([@krshforever](https://github.com/krshforever))
-> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · ~282KB source · 65 kB tarball · 28 tools · static-first (v4)
+> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · ~304KB source · 65 kB tarball · 28 tools · static-first (v4)
 > **Last updated:** 2026-08-06
 
 ## What is bwb?
 
-**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. ~282KB source. 28 tools. 5 runtime dependencies. Static-first: plain pages never spawn Chromium. Zero native dependencies.
+**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. ~304KB source. 28 tools. 5 runtime dependencies. Static-first: plain pages never spawn Chromium. Zero native dependencies.
 
 While other MCP browser tools ship a full browser binary (Playwright MCP = ~250MB, Puppeteer MCP = ~400MB), bwb speaks **Chrome DevTools Protocol (CDP)** directly — over one thin CDP client (`chrome-remote-interface`), no Playwright, no Puppeteer, no bundled browser. It auto-detects the browser already on your system.
 
@@ -134,6 +134,7 @@ When using bwb for web tasks, follow these patterns:
 - `browser_snapshot()` — the accessibility tree with `[ref=e12]` on every actionable node. Take one, then act by ref; re-snapshot after the page changes
 - `browser_console()` / `browser_network()` — always-recording logs; ask after the failure, not before
 - `browser_waitFor({text|ref|selector|url|networkIdle})` — wait for a condition instead of sleeping
+- `browser_extract({kind})` — links, tables, forms, structured data; `browser_storage()` — names only, no values
 - `browser_elements({kind: "links"|"buttons"|"inputs"|"headings"})` — find interactive elements
 - `browser_status()` — page title/URL live in `targets`, plus resource readings and active profile
 
@@ -189,6 +190,11 @@ internally — not just what it looks like.
 | `browser_console` | Console output, uncaught exceptions and browser logs — always recording |
 | `browser_network` | Every request: status, size, duration, failure — always recording, never bodies |
 | `browser_waitFor` | Wait for text, a ref, a selector, a URL or the network to go idle |
+| `browser_dialog` | Answer `alert`/`confirm`/`prompt`: standing policy, or answer the open one now |
+| `browser_extract` | Pull structures out whole: `links`, `tables`, `forms`, `structured` (meta, JSON-LD, headings) |
+| `browser_storage` | `localStorage` / `sessionStorage` / cookies — names, sizes and flags, never values |
+| `browser_frames` | Every frame with its id, so `browser_snapshot({frameId})` can read inside an iframe |
+| `browser_upload` | Put files into `<input type=file>` without the OS picker |
 | `browser_elements` | List interactive elements by kind |
 | `browser_download` | Download media (needs system yt-dlp, consent-gated) |
 | `browser_export` | Write md/txt/html inside the export directory (confined; no pdf/docx/pptx) |

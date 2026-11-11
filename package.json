@@ -21,7 +21,9 @@
     "test:browser": "node --test test/integration.mjs",
     "test:snapshot": "node --test test/snapshot.browser.mjs",
     "test:interact": "node --test test/interact.browser.mjs",
-    "test:all": "npm run lint && npm test && npm run verify:docs && npm run smoke && npm run test:snapshot && npm run test:interact && npm run test:browser",
+    "test:extract": "node --test test/extract.browser.mjs",
+    "test:dialog": "node --test test/dialog.browser.mjs",
+    "test:all": "npm run lint && npm test && npm run verify:docs && npm run smoke && npm run test:snapshot && npm run test:interact && npm run test:extract && npm run test:dialog && npm run test:browser",
     "verify:docs": "node scripts/verify-docs.mjs"
   },
   "keywords": [
