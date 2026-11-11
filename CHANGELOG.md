@@ -1,10 +1,10 @@
 # Changelog
 
-## 4.5.0 — "Handshake"
+## 4.5.0 — "Meridian"
 
-Two programs that share one contract, at the level where you can stop thinking
-about which one you are talking to. Drishti is the browser; bwb is the agent on
-it. This release is the handshake between them.
+A meridian is the line where two ways of measuring the same place agree. Drishti
+is the browser; bwb is the agent on it; the contract is the line they both
+measure from, and neither owns it. This release is that line.
 
 ### Added
 - **Tab leases (contract v2).** `GET /bwb/tabs`, `POST /bwb/tab`, `/lease`,
