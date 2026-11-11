@@ -1,5 +1,13 @@
 # Changelog
 
+Newest first. Each release states what it *was* before it lists what changed,
+because a list of commits is not a history — it's a diff with aspirations.
+Breaking changes are named as breaking. Things that shipped wrong are recorded
+as wrong, with the test that now catches them.
+
+> Reading older entries: a tool-count gate of "≤26" was the gate of *that*
+> release. 4.5 raised it to 41. Counts in old entries are history, not promises.
+
 ## 4.5.1 — the same release, with its numbers corrected
 
 4.5.0 **is** Meridian. This is Meridian re-cut under a new number because the
