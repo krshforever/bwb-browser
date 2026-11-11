@@ -1,6 +1,6 @@
 # bwb-browser — Benchmarks & Comparison
 
-> **bwb**: ~304KB source, 65 kB tarball, 26 tools, 5 runtime dependencies, no bundled browser
+> **bwb**: ~306KB source, 65 kB tarball, 26 tools, 5 runtime dependencies, no bundled browser
 > Numbers refreshed for 4.1.0. Figures marked *(measured)* come from runs on the author's machine; anything else is an approximate published size and should be re-verified before you quote it.
 
 ## Size Comparison
