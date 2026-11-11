@@ -1,12 +1,12 @@
 # bwb-browser — Agent Integration Guide
 
 > **Author:** Krish Tiwari ([@krshforever](https://github.com/krshforever))
-> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · ~243KB source · 65 kB tarball · 28 tools · static-first (v4)
+> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · ~282KB source · 65 kB tarball · 28 tools · static-first (v4)
 > **Last updated:** 2026-08-06
 
 ## What is bwb?
 
-**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. ~243KB source. 28 tools. 5 runtime dependencies. Static-first: plain pages never spawn Chromium. Zero native dependencies.
+**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. ~282KB source. 28 tools. 5 runtime dependencies. Static-first: plain pages never spawn Chromium. Zero native dependencies.
 
 While other MCP browser tools ship a full browser binary (Playwright MCP = ~250MB, Puppeteer MCP = ~400MB), bwb speaks **Chrome DevTools Protocol (CDP)** directly — over one thin CDP client (`chrome-remote-interface`), no Playwright, no Puppeteer, no bundled browser. It auto-detects the browser already on your system.
 
@@ -132,6 +132,8 @@ When using bwb for web tasks, follow these patterns:
 - `browser_screenshot({selector: "#chart"})` — take a screenshot (whole page, viewport, or one element; saves to /storage/emulated/0/Download/bwb-screenshots/ on Android or ~/bwb-screenshots/ on desktop)
 - `browser_html()` — get page HTML
 - `browser_snapshot()` — the accessibility tree with `[ref=e12]` on every actionable node. Take one, then act by ref; re-snapshot after the page changes
+- `browser_console()` / `browser_network()` — always-recording logs; ask after the failure, not before
+- `browser_waitFor({text|ref|selector|url|networkIdle})` — wait for a condition instead of sleeping
 - `browser_elements({kind: "links"|"buttons"|"inputs"|"headings"})` — find interactive elements
 - `browser_status()` — page title/URL live in `targets`, plus resource readings and active profile
 
@@ -179,6 +181,14 @@ internally — not just what it looks like.
 | `browser_click` | Click an element (native CDP mouse events) |
 | `browser_fill` | Fill an input field (native CDP keyboard events) |
 | `browser_snapshot` | Accessibility tree with refs — the stable way to act on a page |
+| `browser_hover` | Move the real pointer onto a ref — `:hover`, dropdown menus, tooltips |
+| `browser_select` | Choose in a native `<select>` by value, exact label or index (fires `input`+`change`) |
+| `browser_press` | Press a key or chord at focus — `Enter`, `Tab`, `Control+a` |
+| `browser_scroll` | Real wheel scroll, scroll-to-ref, or jump to top/bottom |
+| `browser_drag` | Drag one ref onto another with real mouse motion |
+| `browser_console` | Console output, uncaught exceptions and browser logs — always recording |
+| `browser_network` | Every request: status, size, duration, failure — always recording, never bodies |
+| `browser_waitFor` | Wait for text, a ref, a selector, a URL or the network to go idle |
 | `browser_elements` | List interactive elements by kind |
 | `browser_download` | Download media (needs system yt-dlp, consent-gated) |
 | `browser_export` | Write md/txt/html inside the export directory (confined; no pdf/docx/pptx) |

@@ -35,7 +35,7 @@ await transport.close();
 console.log(`# ${tools.length} tools reported by the server\n`);
 
 // ── 1. The release gate ──────────────────────────────────────────────────────
-if (tools.length !== 28) fail(`tool count is ${tools.length}, the stated gate is 28`);
+if (tools.length !== 36) fail(`tool count is ${tools.length}, the stated gate is 36`);
 
 // ── 2. Every tool is documented in README and AGENTS ────────────────────────
 // Only table rows count as "documented as a tool". Prose and Breaking notes

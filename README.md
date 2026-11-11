@@ -1,6 +1,6 @@
 # bwb-browser
 
-**Browser Without Bloat** — ~243KB of source, 65 kB tarball. 26 tools. Static-first. Runs on your phone, survives it too.
+**Browser Without Bloat** — ~282KB of source, 65 kB tarball. 26 tools. Static-first. Runs on your phone, survives it too.
 
 A lightweight MCP server that gives any AI agent browser superpowers. Written by a guy in India on Termux because the existing tools were 200MB of "why" — then rewritten when Android kept killing those tools mid-run.
 
@@ -27,7 +27,7 @@ bwb speaks **Chrome DevTools Protocol (CDP)** — the protocol Chrome speaks nat
 
 | Factor | bwb v4 | Playwright MCP | Puppeteer MCP |
 |--------|-----|----------------|---------------|
-| Source size | **~243KB** | ~50MB+ | ~100MB+ |
+| Source size | **~282KB** | ~50MB+ | ~100MB+ |
 | Published tarball | **65 kB** | — | — |
 | Total install (npm) | **~62MB, zero browsers** | ~250MB | ~400MB |
 | Bundled browser | **None** | Chromium (~200MB) | Chromium (~300MB) |
@@ -191,11 +191,19 @@ bwb
 
 ---
 
-## All 28 Tools
+## All 36 Tools
 
 | Tool | Description |
 |------|-------------|
 | **`browser_snapshot`** | The accessibility tree with `[ref=e12]` on everything you can act on. Start here on an unfamiliar page — then `browser_click({ref})` / `browser_fill({ref})` instead of writing CSS |
+| `browser_hover` | Move the real pointer onto a ref — `:hover`, dropdown menus, tooltips |
+| `browser_select` | Choose in a native `<select>` by value, exact label or index (fires `input`+`change`) |
+| `browser_press` | Press a key or chord at focus — `Enter`, `Tab`, `Control+a` |
+| `browser_scroll` | Real wheel scroll, scroll-to-ref, or jump to top/bottom |
+| `browser_drag` | Drag one ref onto another with real mouse motion |
+| `browser_console` | Console output, uncaught exceptions and browser logs — always recording |
+| `browser_network` | Every request: status, size, duration, failure — always recording, never bodies |
+| `browser_waitFor` | Wait for text, a ref, a selector, a URL or the network to go idle |
 | **`browser_act`** | Natural language — "search for X", "click the button", "what's on this page". Returns `candidates` instead of guessing |
 | **`browser_watch`** | Live event capture — console, network, errors, navigation |
 | **`browser_diagnose`** | Full page health check — timings, errors, broken images, score |
@@ -344,7 +352,7 @@ Every browser automation tool assumes you have 400MB to spare and a desktop-clas
 
 bwb is engineered against the hardest constraint first: **a memory-pressured device where every megabyte is contested.** No bundled browser. No wrapper frameworks. Just CDP — the protocol Chrome speaks natively, over one thin client — plus a static-fetch ladder so Chromium only starts when JavaScript demands it. Mobile-first isn't a feature here. It's the design spec everything else has to survive.
 
-The result is ~243KB of source that does what 400MB of dependencies do. Not better code — less code, held to budgets: 26 tools max, 5 runtime dependencies, 65 kB tarball, zero native modules. Constraints are features. (The 4.1.0 correctness pass grew the source by ~50KB: a real URL policy, a real element-scoring engine, and the tests that keep them honest.)
+The result is ~282KB of source that does what 400MB of dependencies do. Not better code — less code, held to budgets: 26 tools max, 5 runtime dependencies, 65 kB tarball, zero native modules. Constraints are features. (The 4.1.0 correctness pass grew the source by ~50KB: a real URL policy, a real element-scoring engine, and the tests that keep them honest.)
 
 *— Krish Tiwari ([@krshforever](https://github.com/krshforever))*
 

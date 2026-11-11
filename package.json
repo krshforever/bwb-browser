@@ -20,7 +20,8 @@
     "smoke": "node test/smoke.mjs",
     "test:browser": "node --test test/integration.mjs",
     "test:snapshot": "node --test test/snapshot.browser.mjs",
-    "test:all": "npm run lint && npm test && npm run verify:docs && npm run smoke && npm run test:snapshot && npm run test:browser",
+    "test:interact": "node --test test/interact.browser.mjs",
+    "test:all": "npm run lint && npm test && npm run verify:docs && npm run smoke && npm run test:snapshot && npm run test:interact && npm run test:browser",
     "verify:docs": "node scripts/verify-docs.mjs"
   },
   "keywords": [
