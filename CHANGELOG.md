@@ -1,6 +1,41 @@
 # Changelog
 
-## Unreleased — drishti mode
+## 4.5.0 — "Handshake"
+
+Two programs that share one contract, at the level where you can stop thinking
+about which one you are talking to. Drishti is the browser; bwb is the agent on
+it. This release is the handshake between them.
+
+### Added
+- **Tab leases (contract v2).** `GET /bwb/tabs`, `POST /bwb/tab`, `/lease`,
+  `/release`, `/activate`, `/close`. One exclusive writer per tab, 120 s
+  deadline, renewed by working. A refusal names the holder (`held_by`) so a
+  client backs off instead of retrying into the same wall. Tabs created by bwb
+  are leased to it in the same round trip.
+- **`X-BWB-Client` identity**, persisted in the paired store. A lease taken
+  before a crash is still recognisably yours after it; without a stable id every
+  restart fights an expiring lease for two minutes because "someone else" holds
+  the tab.
+- **`last_help`** in `/bwb/state`: the human's decision, kept after the app
+  clears the request.
+- **`bwb drishti` shows the registry**: `2/12 tabs, 1 leased (3f2a9c4e→bwb-a1b2c3)`,
+  plus the contract version, the app build, and the last decision.
+
+### Fixed
+- **D5 — silence is not consent.** `waitForApproval` returned `approved:true`
+  when the app reported no pending help, so a human who tapped *Deny* and one
+  who tapped *Allow* produced the same result: the blocked step was retried. It
+  now reads the decision (`help`, then `last_help`) and treats no answer as a
+  refusal. A failed help POST is no longer "the app handled it, carry on".
+- A denial is now reported as `domain_denied` with "do not retry", so an agent
+  stops instead of hammering a human who already said no.
+
+### Changed
+- **Breaking at the wire:** contract 2. A v1 app answers `404`/`501` for the tab
+  family and bwb degrades with a named reason rather than pretending.
+- `POST /bwb/tab` answers `201 {"tab":{…},"leased":bool}` instead of `200 {"id"}`.
+
+### The drishti-mode groundwork (unreleased from 4.1.0)
 
 A first-class mode for driving [drishti](https://github.com/krshforever/drishti),
 the Android WebView browser, instead of treating it as a generic attach target.
@@ -20,7 +55,7 @@ the Android WebView browser, instead of treating it as a generic attach target.
 - **Step reporting** — plain-language POSTs to the app; never typed values.
 - **Tabs** — the human's tabs are registered `owned: false` and never closed.
 
-The wire format is now **BWB control contract v1**:
+The wire format was **BWB control contract v1**:
 [`docs/DRISHTI-CONTRACT.md`](docs/DRISHTI-CONTRACT.md), a verbatim copy of the
 drishti repo's `docs/BWB-CONTRACT.md`, with shared JSON fixtures in
 `test/fixtures/drishti-contract/` that both repos' tests assert against.

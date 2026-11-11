@@ -1,4 +1,4 @@
-# BWB Control Contract — v1.1
+# BWB Control Contract — v2
 
 > **This file is the single source of truth.** It lives in `drishti` at
 > `docs/BWB-CONTRACT.md` and is copied verbatim to `bwb-browser` as
@@ -12,7 +12,7 @@
 > client that needs a field we do not have is not "handled by tolerance" — it is
 > a contract bump.
 
-**Version:** 1.1 · **Transport:** HTTP/1.1 over loopback only, `127.0.0.1:9222`.
+**Version:** 2 · **Transport:** HTTP/1.1 over loopback only, `127.0.0.1:9222`.
 
 ---
 
@@ -50,6 +50,13 @@
     (`idle_disconnect_sec`), Drishti ends the agent session (token stays valid,
     tabs untouched, wake lock released). `bwb` may request a shorter value via
     `POST /bwb/limits`, never longer.
+11. **Client identity (v2).** Every tab call may carry `X-BWB-Client:
+    <1–64 byte stable string>`. It is the agent's name for lease purposes and
+    for nothing else: it grants no capability, replaces no token, and is never
+    echoed into a page. Absent identity can read metadata and can never lease.
+    The human is not a client and needs no identity. Two agents that expect to
+    run concurrently must use distinct identities; the same identity is one
+    client, and one client may hold one lease per tab.
 
 ---
 
@@ -187,7 +194,8 @@ GET /bwb/state?wait=8   → holds up to 8 s for a change
 
 ```json
 { "mode": "AGENT",
-  "help": null }
+  "help": null,
+  "last_help": null }
 ```
 
 ```json
@@ -196,7 +204,8 @@ GET /bwb/state?wait=8   → holds up to 8 s for a change
             "kind": "site",
             "reason": "Approve demoqa.com?",
             "domain": "demoqa.com",
-            "status": "pending" } }
+            "status": "pending" },
+  "last_help": null }
 ```
 
 ```json
@@ -206,7 +215,19 @@ GET /bwb/state?wait=8   → holds up to 8 s for a change
             "reason": "Approve demoqa.com?",
             "domain": "demoqa.com",
             "status": "resolved",
-            "approved": true } }
+            "approved": true },
+  "last_help": null }
+```
+
+```json
+{ "mode": "AGENT",
+  "help": null,
+  "last_help": { "id": "help_17f3a1",
+                 "kind": "site",
+                 "reason": "Approve demoqa.com?",
+                 "domain": "demoqa.com",
+                 "status": "resolved",
+                 "approved": false } }
 ```
 
 | field | type | notes |
@@ -219,6 +240,13 @@ GET /bwb/state?wait=8   → holds up to 8 s for a change
 | `help.domain` | string? | present for `kind:"site"` |
 | `help.status` | enum | `"pending"` \| `"resolved"` |
 | `help.approved` | bool? | present once resolved: `true` approved, `false` denied |
+| `last_help` | object \| null | **v2.** The last resolved request, kept after `help` clears |
+
+**Why `last_help` exists.** `help` clears once the human resolves it, and a
+client that polls a moment too late sees `help: null`. Before v2 that silence
+was indistinguishable from approval, so a denial was retried (D5: a fail-open).
+`last_help` carries the decision past the clear. A new `POST /bwb/help` clears
+it, so a stale approval can never answer for the request that just arrived.
 
 **Wait semantics.**
 
@@ -232,8 +260,15 @@ GET /bwb/state?wait=8   → holds up to 8 s for a change
 **Client resume rule (normative).** After a `-32000` rejection or an `401`-free
 block, the client may run the next step only when
 `mode == "AGENT"` **and** `help` is `null` **or** `help.status == "resolved"`.
-For `kind:"site"`, a `resolved` help with `approved:false` is a refusal, not a
-retry.
+
+For a blocked site the client waits for a **decision**, not for silence:
+
+1. Read the decision from `help` if `help.status == "resolved"`, otherwise from
+   `last_help` if `last_help.status == "resolved"`.
+2. Matching means the ids agree, or `decision.domain` equals the blocked host.
+3. `approved: true` → retry **once**. `approved: false` → refusal: stop, do not
+   retry, tell the human.
+4. No decision within the timeout → refusal. **Silence is never consent.**
 
 ---
 
@@ -267,28 +302,110 @@ the allowlist, so the retried command passes.
 
 ---
 
-## 6. `POST /bwb/tab` — open a tab (auth)
+## 6. Tabs — one registry, one writer per tab (auth)
+
+WebView has no `/json/new` (verified on device: `PUT /json/new` →
+`500 Could not create new page`), so the app owns tab creation and the tab
+registry. The registry is the single answer to "what is open, and who is
+driving it"; CDP target ids are not, because they change and cannot express
+ownership.
+
+Every endpoint below requires the `tabs` capability. Disabled →
+`403 {"error":"capability_disabled:tabs"}`.
+
+### 6.1 `GET /bwb/tabs` — what is open
+
+```json
+{ "tabs": [
+    { "id": "3f2a9c…", "title": "GitHub", "url": "https://github.com/",
+      "active": true, "leased": false, "owner": null,
+      "lease_expires_in_sec": 0 } ],
+  "max": 12 }
+```
+
+`active` is the tab attached to the screen. `owner` is `null` unless a live
+lease exists. Expired leases are cleared before the response is built, so a
+client never sees a ghost owner. Metadata is readable **without** a lease.
+
+### 6.2 `POST /bwb/tab` — open a tab
 
 ```http
 POST /bwb/tab
+X-BWB-Client: bwb-a1b2c3
 
 { "url": "https://example.com" }
 ```
 
-`200 OK`
+`201 Created`
 
 ```json
-{ "id": "DB630DEA4F38B9519419837B5BFDF6DC" }
+{ "tab": { "id": "3f2a9c…", "title": "Example", "url": "https://example.com",
+           "active": true, "leased": true, "owner": "bwb-a1b2c3",
+           "lease_expires_in_sec": 120 },
+  "leased": true }
 ```
 
-Required **only** because WebView has no `/json/new` (verified on device:
-`PUT /json/new` → `500 Could not create new page`). `id` is the CDP page target
-id of the tab that was created. `url` may be `null` for the app's new-tab page.
+`url` may be `null` for the app's new-tab page; otherwise it must be `http` or
+`https` (`400` otherwise). If `X-BWB-Client` is present the new tab is leased to
+that client in the same round trip, so two agents creating tabs simultaneously
+cannot end up sharing one.
 
-If the installed build cannot create tabs (UI layer not wired), it must answer
+Errors: `409 {"error":"tab_limit"}` · `503 {"error":"tab_ui_unavailable"}` (no
+Activity attached) · `503 {"error":"tab_command_failed"}` · `503
+{"error":"tab_command_queue_full"}`.
+
+A build that cannot create tabs answers
 `501 {"error":"tab creation is not wired in this build"}` rather than pretending
-or hanging. Clients translate `501`/`404` into "this build cannot open tabs"
-and keep using the tab the human already has open.
+or hanging. Clients translate `501`/`404` into "this build cannot open tabs" and
+keep using the tab the human already has open.
+
+### 6.3 `POST /bwb/tab/lease` — take the write lease
+
+```http
+POST /bwb/tab/lease
+X-BWB-Client: bwb-a1b2c3
+
+{ "tab": "3f2a9c…" }
+```
+
+`200 OK` → `{"tab": {…}, "lease_sec": 120}`
+
+| status | body | meaning |
+|---|---|---|
+| `400` | `{"error":"client_id_required"}` | no `X-BWB-Client` |
+| `400` | `{"error":"tab_required"}` | no `tab` |
+| `404` | `{"error":"unknown_tab"}` | no such tab |
+| `409` | `{"error":"tab_locked","held_by":"<client>"}` | someone else holds it |
+
+Rules:
+
+- One exclusive **write** lease per tab. Metadata stays readable by everyone.
+- TTL is 120 s, renewed by leasing again. Re-leasing a tab you already hold is
+  idempotent.
+- A lease is a **deadline, not a mutex**. A killed client frees its tab by
+  expiring; nothing has to reap it.
+- One client may hold many tabs. Many clients may never hold one tab.
+- The human holds no lease and needs none. No code path lets an agent lock the
+  owner out of his own browser.
+
+### 6.4 `POST /bwb/tab/release` — give it up early
+
+Body `{"tab": "…"}`. `200 {"released":true}` ·
+`409 {"error":"not_lease_holder"}`.
+
+### 6.5 `POST /bwb/tab/activate` — mark the focus
+
+Body `{"tab": "…"}`. `200 {"activated":true,"screen":false}`.
+
+Advisory only: it updates the registry so other clients can see where attention
+is, and **never** switches the screen. The human's view is not something an agent
+gets to take.
+
+### 6.6 `POST /bwb/tab/close` — destroy it
+
+Body `{"tab": "…"}`. The caller must hold the lease, or the tab must be unleased
+→ otherwise `409 {"error":"tab_locked","held_by":"…"}`. Closing the last tab
+opens a fresh one: a browser with zero tabs has nowhere to put the next action.
 
 ---
 

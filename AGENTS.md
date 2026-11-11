@@ -1,12 +1,12 @@
 # bwb-browser — Agent Integration Guide
 
 > **Author:** Krish Tiwari ([@krshforever](https://github.com/krshforever))
-> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · ~225KB source · 65 kB tarball · 27 tools · static-first (v4)
+> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · ~226KB source · 65 kB tarball · 27 tools · static-first (v4)
 > **Last updated:** 2026-08-06
 
 ## What is bwb?
 
-**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. ~225KB source. 27 tools. 5 runtime dependencies. Static-first: plain pages never spawn Chromium. Zero native dependencies.
+**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. ~226KB source. 27 tools. 5 runtime dependencies. Static-first: plain pages never spawn Chromium. Zero native dependencies.
 
 While other MCP browser tools ship a full browser binary (Playwright MCP = ~250MB, Puppeteer MCP = ~400MB), bwb speaks **Chrome DevTools Protocol (CDP)** directly — over one thin CDP client (`chrome-remote-interface`), no Playwright, no Puppeteer, no bundled browser. It auto-detects the browser already on your system.
 
@@ -53,7 +53,7 @@ npm install -g bwb-browser
 
 # 2. Verify it works
 bwb --version
-# → bwb-browser 4.1.0
+# → bwb-browser 4.5.0
 
 # 3. Add to your AI agent's MCP config
 ```
@@ -278,6 +278,28 @@ In this mode bwb is a guest on a browser the human is also holding:
 - **Blocked sites ask.** A host outside drishti's allowlist posts
   `POST /bwb/help {kind:"site", reason, domain}` and retries **once** after
   approval. A resolved help with `approved:false` is a refusal — do not retry.
+- **Silence is not consent.** The approval wait reads the human's *decision*
+  (`help`, or `last_help` once the app has cleared the request). No decision
+  before the timeout is a refusal, the same as a Deny. There is no code path
+  where "nobody answered" is read as "yes".
+- **Tabs are leased, not grabbed.** `GET /bwb/tabs` lists every tab with its
+  holder. Writing to a shared tab means `POST /bwb/tab/lease` first — one
+  exclusive writer, 120 s TTL, renewed by re-leasing. A 409 names the holder in
+  `held_by`, so back off instead of retrying. Tabs you create are leased to you
+  automatically, and identity is `X-BWB-Client`, persisted in the paired store
+  so a restart does not fight its own expiring lease.
+- **`bwb drishti`** checks the whole chain and says how to fix each break:
+
+```text
+✓ paired: token ••••a1b2 on port 9222
+✓ relay: listening on 127.0.0.1:9222
+✓ app: Drishti 1.0.0
+✓ contract: v2 (tab leases, last_help) · 9 capabilities
+✓ token: WebView (Android-Package: com.bwb.drishti)
+✓ tabs: 3 page target(s)
+✓ leases: 2/12 tabs, 1 leased (3f2a9c4e→bwb-a1b2c3)
+✓ control: mode=AGENT · last decision: denied blocked.example
+```
 
 #### The `needs_human` rule (important)
 

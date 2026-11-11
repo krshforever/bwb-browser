@@ -24,7 +24,7 @@ import {
   runDrishtiAware, waitForHandback, waitForApproval,
   cdpErrorInfo, domainFromBlockError, humanStep, createStepReporter,
   pairFlow, generatePairCode, DrishtiPausedError, DEFAULT_PORT,
-  clientId, leaseTab, listDrishtiTabs, releaseTab, closeDrishtiTab,
+  clientId, leaseTab, listDrishtiTabs, releaseTab, closeDrishtiTab, doctor,
 } from "../lib/drishti.mjs";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -86,7 +86,10 @@ async function mockDrishti(t, {
       if (!tab) return send(501, { error: "tab creation is not wired in this build" });
       return send(200, tab);
     }
-    if (url.pathname === "/bwb/tabs") return send(200, tabs ?? { tabs: [], max: 12 });
+    if (url.pathname === "/bwb/tabs") {
+      if (tabs === "unsupported") return send(404, { error: "not found" });
+      return send(200, tabs ?? { tabs: [], max: 12 });
+    }
     if (url.pathname === "/bwb/tab/lease") {
       let body = "";
       req.on("data", (c) => { body += c; });
@@ -547,6 +550,38 @@ test("D5 a failed help POST does not become permission to retry", async () => {
     (e) => e instanceof DrishtiPausedError,
   );
   assert.equal(ran, 1, "the step must not be retried without a decision");
+});
+
+test("D7 the doctor reports the tab registry, and names a v1 build honestly", async (t) => {
+  tempStore(t);
+  const mock = await mockDrishti(t, {
+    tabs: {
+      tabs: [
+        { id: "aaaaaaaa-1", title: "One", url: "https://a.test", active: true, leased: true, owner: "bwb-a1b2c3", lease_expires_in_sec: 90 },
+        { id: "bbbbbbbb-2", title: "Two", url: "https://b.test", active: false, leased: false, owner: null, lease_expires_in_sec: 0 },
+      ],
+      max: 12,
+    },
+  });
+  writeStore({ token: TOKEN, port: mock.port });
+
+  const report = await doctor({ ctx: { port: mock.port, token: TOKEN } });
+  const leases = report.checks.find((c) => c.name === "leases");
+  assert.ok(leases, "the doctor must check the registry");
+  assert.equal(leases.ok, true);
+  assert.match(leases.detail, /2\/12 tabs, 1 leased/);
+  assert.match(leases.detail, /bwb-a1b2c3/, "a lease names its holder");
+});
+
+test("D7 the doctor says 'pre-v2 build' instead of failing silently", async (t) => {
+  tempStore(t);
+  const mock = await mockDrishti(t, { tabs: "unsupported" });
+  writeStore({ token: TOKEN, port: mock.port });
+
+  const report = await doctor({ ctx: { port: mock.port, token: TOKEN } });
+  const leases = report.checks.find((c) => c.name === "leases");
+  assert.equal(leases.ok, false);
+  assert.match(leases.detail, /pre-contract v2/);
 });
 
 // ─── D5: step reporting ──────────────────────────────────────────────────────

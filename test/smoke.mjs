@@ -29,7 +29,8 @@ const text = (r) => r.content.map((c) => c.text || "").join("\n");
 
   const { tools } = await client.listTools();
   console.log(`tools: ${tools.length}`);
-  if (tools.length !== 26) fail(`expected 26 tools, got ${tools.length}`);
+  if (tools.length !== 27) fail(`expected 27 tools, got ${tools.length}`);
+  if (!tools.some((t) => t.name === "needs_human")) fail("needs_human is missing from the drishti toolset");
 
   const names = tools.map((t) => t.name);
   const dupes = names.filter((n, i, a) => a.indexOf(n) !== i);

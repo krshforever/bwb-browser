@@ -1,5 +1,5 @@
 {
-  "contract": 1,
+  "contract": 2,
   "name": "hello-unpaired",
   "request": {
     "method": "GET",
@@ -12,7 +12,7 @@
     "json": {
       "app": "drishti",
       "version": "1.0.0",
-      "contract": 1,
+      "contract": 2,
       "paired": false,
       "capabilities": [
         "core",

@@ -1,0 +1,22 @@
+{
+  "contract": 2,
+  "name": "tab-lease-locked",
+  "request": {
+    "method": "POST",
+    "path": "/bwb/tab/lease",
+    "headers": {
+      "X-BWB-Token": "0123456789abcdef0123456789abcdef",
+      "X-BWB-Client": "bwb-b2c3d4"
+    },
+    "body": {
+      "tab": "3f2a9c4e-1b7d-4c2a-9f10-8a1b2c3d4e5f"
+    }
+  },
+  "response": {
+    "status": 409,
+    "json": {
+      "error": "tab_locked",
+      "held_by": "bwb-a1b2c3"
+    }
+  }
+}

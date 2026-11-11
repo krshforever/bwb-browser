@@ -1,6 +1,6 @@
 # bwb-browser
 
-**Browser Without Bloat** — ~225KB of source, 65 kB tarball. 26 tools. Static-first. Runs on your phone, survives it too.
+**Browser Without Bloat** — ~226KB of source, 65 kB tarball. 26 tools. Static-first. Runs on your phone, survives it too.
 
 A lightweight MCP server that gives any AI agent browser superpowers. Written by a guy in India on Termux because the existing tools were 200MB of "why" — then rewritten when Android kept killing those tools mid-run.
 
@@ -27,7 +27,7 @@ bwb speaks **Chrome DevTools Protocol (CDP)** — the protocol Chrome speaks nat
 
 | Factor | bwb v4 | Playwright MCP | Puppeteer MCP |
 |--------|-----|----------------|---------------|
-| Source size | **~225KB** | ~50MB+ | ~100MB+ |
+| Source size | **~226KB** | ~50MB+ | ~100MB+ |
 | Published tarball | **65 kB** | — | — |
 | Total install (npm) | **~62MB, zero browsers** | ~250MB | ~400MB |
 | Bundled browser | **None** | Chromium (~200MB) | Chromium (~300MB) |
@@ -165,7 +165,7 @@ bwb drives a **real, logged-in browser** on behalf of a model that is reading pa
 ```bash
 npm install -g bwb-browser
 bwb --setup --yes     # writes the MCP entry into your agent's config
-bwb --version         # → bwb-browser 4.1.0
+bwb --version         # → bwb-browser 4.5.0
 ```
 
 `bwb --setup` is a **dry run unless you pass `--yes`** — it lists exactly which of your agents' config files it would touch. If you have Chrome/Chromium anywhere on your system, bwb finds it. No config files of your own. No environment variables. Just works.
@@ -265,15 +265,37 @@ What the mode changes:
   change instead of a hot loop — then resume the same step when you tap *Hand
   back*.
 - **Site approval, not silent failure.** A host outside drishti's allowlist
-  triggers an approval prompt on the phone; bwb retries once after you approve.
+  triggers an approval prompt on the phone; bwb retries once after you approve,
+  and stops for good when you deny.
+- **Silence is never consent.** The approval wait looks for your *decision* —
+  `help` while it is live, `last_help` after the app clears it. No answer before
+  the timeout is a refusal, not a retry. A failed request to raise the prompt is
+  also not permission to carry on.
+- **Tabs are leased, not grabbed.** `GET /bwb/tabs` shows every tab and who
+  holds it. Two agents cannot write one tab: the first to `POST /bwb/tab/lease`
+  owns it for 120 s, renewed by working, and a 409 names the holder in
+  `held_by`. Tabs bwb creates are leased to it automatically, and its identity
+  survives a restart because it lives in the paired store. The human holds no
+  lease and is never locked out.
 - **The phone shows what bwb is doing.** Every tool call posts a plain-language
   step ("Clicking #submit"), never typed values or page content.
 - **`needs_human`** is the tool for logins, captchas, 2FA and payments. It asks
   the app, then waits. bwb never tries to bypass them.
 
 ```bash
-bwb drishti   # doctor: paired? app? token? tabs? control API?
+bwb drishti   # doctor: pairing, relay, app, contract, token, tabs, leases, control
 bwb unpair    # forget the token
+```
+
+```text
+✓ paired: token ••••a1b2 on port 9222
+✓ relay: listening on 127.0.0.1:9222
+✓ app: Drishti 1.0.0
+✓ contract: v2 (tab leases, last_help) · 9 capabilities
+✓ token: WebView (Android-Package: com.bwb.drishti)
+✓ tabs: 3 page target(s)
+✓ leases: 2/12 tabs, 1 leased (3f2a9c4e→bwb-a1b2c3)
+✓ control: mode=AGENT · last decision: denied blocked.example
 ```
 
 The paired token lives in `~/.config/bwb/drishti.json` (0600). It is never
@@ -321,7 +343,7 @@ Every browser automation tool assumes you have 400MB to spare and a desktop-clas
 
 bwb is engineered against the hardest constraint first: **a memory-pressured device where every megabyte is contested.** No bundled browser. No wrapper frameworks. Just CDP — the protocol Chrome speaks natively, over one thin client — plus a static-fetch ladder so Chromium only starts when JavaScript demands it. Mobile-first isn't a feature here. It's the design spec everything else has to survive.
 
-The result is ~225KB of source that does what 400MB of dependencies do. Not better code — less code, held to budgets: 26 tools max, 5 runtime dependencies, 65 kB tarball, zero native modules. Constraints are features. (The 4.1.0 correctness pass grew the source by ~50KB: a real URL policy, a real element-scoring engine, and the tests that keep them honest.)
+The result is ~226KB of source that does what 400MB of dependencies do. Not better code — less code, held to budgets: 26 tools max, 5 runtime dependencies, 65 kB tarball, zero native modules. Constraints are features. (The 4.1.0 correctness pass grew the source by ~50KB: a real URL policy, a real element-scoring engine, and the tests that keep them honest.)
 
 *— Krish Tiwari ([@krshforever](https://github.com/krshforever))*
 

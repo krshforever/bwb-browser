@@ -1,5 +1,5 @@
 {
-  "contract": 1,
+  "contract": 2,
   "name": "limits-post",
   "request": {
     "method": "POST",

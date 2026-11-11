@@ -1,5 +1,5 @@
 {
-  "contract": 1,
+  "contract": 2,
   "name": "status-working",
   "request": {
     "method": "POST",

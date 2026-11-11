@@ -1,20 +1,30 @@
 {
-  "contract": 1,
+  "contract": 2,
   "name": "tab-post",
   "request": {
     "method": "POST",
     "path": "/bwb/tab",
     "headers": {
-      "X-BWB-Token": "0123456789abcdef0123456789abcdef"
+      "X-BWB-Token": "0123456789abcdef0123456789abcdef",
+      "X-BWB-Client": "bwb-a1b2c3"
     },
     "body": {
       "url": "https://example.com"
     }
   },
   "response": {
-    "status": 200,
+    "status": 201,
     "json": {
-      "id": "DB630DEA4F38B9519419837B5BFDF6DC"
+      "tab": {
+        "id": "3f2a9c4e-1b7d-4c2a-9f10-8a1b2c3d4e5f",
+        "title": "Example",
+        "url": "https://example.com",
+        "active": true,
+        "leased": true,
+        "owner": "bwb-a1b2c3",
+        "lease_expires_in_sec": 120
+      },
+      "leased": true
     }
   }
 }
