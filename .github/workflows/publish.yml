@@ -41,16 +41,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Trusted publishing needs Node >= 22.14.0 and npm >= 11.5.1. Pinned, not
-      # floated: a runner image that silently drops below 22.14 would fail here
-      # with a confusing "not authorized" instead of a clear version error.
+      # Trusted publishing needs Node >= 22.14.0 and npm >= 11.5.1, and npm 12
+      # itself needs Node ^22.22.2 || ^24.15.0 || >=26 — so the floor is the
+      # more demanding of the two. 24.15.0 satisfies both. Bounded to npm 12,
+      # not `@latest`: a future npm major with a newer engine would fail here
+      # for a reason that has nothing to do with this package.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.14.0
+          node-version: 24.15.0
           registry-url: https://registry.npmjs.org
 
       - name: npm version
-        run: npm install -g npm@latest && node --version && npm --version
+        run: npm install -g 'npm@^12' && node --version && npm --version
 
       - name: Install
         run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
