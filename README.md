@@ -232,7 +232,7 @@ The app is built on Android's WebView — the same engine inside Chrome, shipped
 
 - **Attach only.** Never launches a browser, never kills anything, never restores a journal.
 - **Your tabs stay yours.** bwb never closes or navigates a tab it did not open; `browser_listTabs` marks them `owned: false`.
-- **Tabs are leased, not grabbed.** One exclusive writer, 120 s, renewed by working. A 409 names the holder in `held_by`, so back off instead of retrying into the same wall. Two agents cannot write one tab, and neither can overwrite the human.
+- **Tabs are leased, not grabbed.** The registry tracks one exclusive writer per tab, 120 s, renewed by working. A 409 names the holder in `held_by`, so back off instead of retrying into the same wall. Being honest about the current limit: the lease is tracked at the registry, not yet enforced on the CDP socket — it stops two agents from *disagreeing* through `/bwb/tabs`, not one of them from sending `Input` to a tab it does not hold. Closing that is the first item in 1.1. The human, meanwhile, cannot be overwritten at all: USER mode blocks mutating CDP methods at the relay.
 - **Takeover is a pause.** Tap *Take control* and the blocked command long-polls `GET /bwb/state?wait=30` — one held request, not a hot loop — then resumes the same step when you hand back.
 - **Silence is never consent.** The approval wait reads your decision, not the absence of a refusal. No answer before the timeout is a denial, the same as tapping Deny.
 - **The human cannot be locked out of their own phone.** No lease, no queue, no "please wait".
@@ -278,7 +278,7 @@ bwb drives a real, logged-in browser for a model reading pages it does not contr
 | Platform | Status | Notes |
 |---|---|---|
 | Termux / Android | ✅ Verified | `pkg install chromium`, then npm. The whole reason this exists |
-| Android + Drishti | ✅ Verified | No Chromium to install at all — the app is the browser |
+| Android + Drishti | 🟡 Built, device pending | No Chromium to install at all — the app is the browser. Unit-tested and CI-built; the on-device checklist in the app repo has not been run yet |
 | Linux | ✅ Verified | Chrome or Chromium, auto-detected |
 | macOS | ✅ Verified | Chrome.app auto-detected |
 | CI (GitHub Actions) | ✅ Tested | Unit suite on Node 18/20/22, browser suite on 22 |

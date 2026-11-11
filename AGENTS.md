@@ -224,7 +224,7 @@ from that.
 |---|---|
 | **Attach only** | No spawn, no kill, no journal restore. If nothing is listening, say so — do not start a browser |
 | **Tabs have owners** | `browser_listTabs` → `owned: false` means read-only for you. Never navigate or close it |
-| **Lease before writing** | `POST /bwb/tab/lease`, 120 s, renewed by working. A 409 names the holder in `held_by` — back off, do not retry |
+| **Lease before writing** | `POST /bwb/tab/lease`, 120 s, renewed by working. A 409 names the holder in `held_by` — back off, do not retry. The lease is registry-side today and does not gate CDP, so the discipline is yours: do not write to a tab you do not hold |
 | **Takeover pauses you** | A blocked command long-polls `GET /bwb/state?wait=30` and resumes that same step. It returns `{paused: true, reason}` if it times out; nothing changed |
 | **Silence is refusal** | The approval wait reads a decision (`help`, or `last_help` once cleared). No answer = denied. Do not retry after a deny |
 | **`needs_human` is the only door** | Login, captcha, 2FA, payment → ask and wait. Returns `{status: "user_done"}` or `{status: "timed_out"}` |
