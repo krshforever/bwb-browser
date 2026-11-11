@@ -35,6 +35,61 @@ measure from, and neither owns it. This release is that line.
   family and bwb degrades with a named reason rather than pretending.
 - `POST /bwb/tab` answers `201 {"tab":{…},"leased":bool}` instead of `200 {"id"}`.
 
+### The Playwright/Puppeteer gap, closed
+
+Until this release every action was a CSS guess. Now the browser reports what is
+on the page and hands back a ref for each thing a person can act on — and the
+rest of the tool surface exists so that an agent never has to sleep-and-hope.
+
+- **`browser_snapshot`** — the accessibility tree as indented text, with
+  `[ref=e12]` only on actionable roles. Landmarks and headings stay as
+  structure; `aria-hidden` subtrees never enter the tree; a text field's value
+  never does. An engine that exposes no tree gets an explicit "the tree is
+  empty — use browser_extract" rather than a convincing blank page.
+- **Refs, per tab.** `browser_click`, `browser_fill`, `browser_hover`,
+  `browser_select`, `browser_drag` and `browser_upload` resolve a ref through
+  `DOM.resolveNode(backendNodeId)`; a ref that outlives its DOM throws
+  `StaleRefError` with the instruction to re-snapshot. Refs are keyed by tab, so
+  two agents on two tabs cannot overwrite each other's snapshot. A CSS selector
+  is still accepted as the escape hatch for nodes the tree does not carry.
+- **`browser_hover`** — a real `mouseMoved`, so `:hover`, menus and tooltips open.
+- **`browser_select`** — chooses by value, exact label or index and dispatches
+  `input` + `change`; a custom dropdown is refused with the two-click recipe.
+- **`browser_press`** — `key`, `code` and virtual key code agree, modifiers go
+  down first and up last, so `Control+Shift+a` reaches the page as one chord.
+- **`browser_scroll`** — wheel events (lazy loading behaves), scroll-to-ref, or
+  top/bottom.
+- **`browser_drag`** — pressed → interpolated moves → release **in a `finally`**,
+  because a drag that throws must not leave the mouse button down and turn every
+  later click into a drag.
+- **`browser_console` / `browser_network`** — always recording, from the moment
+  a CDP client is handed out, so the errors thrown during navigation are in the
+  buffer before anyone asks. 300 console entries, 400 requests, metadata only.
+  If instrumentation fails the tool says why instead of returning a convincing
+  empty list.
+- **`browser_waitFor`** — text, ref, selector, URL (with `*`) or network idle.
+  On timeout it reports what it last saw and suggests a fresh snapshot.
+- **`browser_extract`** — links, tables (headers, rows, header row excluded from
+  the data), forms (types, labels, required, options) and structured data
+  (title, meta, JSON-LD, heading outline).
+- **`browser_storage`** — localStorage, sessionStorage and cookies: **names,
+  sizes and flags only**. A store of values in context is a credential leak;
+  `get-value` exists for the one key that is genuinely needed. Cookie values are
+  never returned at all.
+- **`browser_frames`** — every frame with its id; `browser_snapshot({frameId})`
+  reads inside an iframe.
+- **`browser_upload`** — `DOM.setFileInputFiles`, because the OS picker cannot be
+  answered on a phone; a non-file input is refused with the reason.
+- **`browser_dialog`** — `alert`/`confirm`/`prompt`: standing accept/dismiss
+  policy or answer the open one. Off by default: on Drishti the app's own
+  `WebChromeClient` answers dialogs, and two answers to one dialog is worse than
+  one.
+
+Verified against a real Chromium on the phone: 6 snapshot checks, 9 interaction
+checks, 9 extraction checks, 7 dialog checks, 21 integration checks, 155 unit
+tests, smoke and doc verification — 207 green. **Not** device-tested through the
+Drishti app; no adb on this machine.
+
 ### Known gaps
 - **Leases are advisory, not enforced.** `bwb` leases the tabs it creates, and
   `GET /bwb/tabs` tells every agent who holds what, but an ordinary CDP write
@@ -42,9 +97,14 @@ measure from, and neither owns it. This release is that line.
   tab id yet, so bwb has nothing to lease *against* before it acts. Two agents
   on one tab are discouraged, not blocked. Enforcement is the next release and
   it needs the relay to own the WebSocket path.
-- **Nothing here is device-tested.** 146 unit tests, 13 contract tests, 21
-  browser integration tests, lint, smoke and doc verification are green; no
-  claim in this entry has been confirmed on the phone.
+- **PDF export and request interception are not here.** `Page.printToPDF` is
+  desktop-only (Android WebView answers "not implemented"), and interception is
+  a routing engine with its own failure modes — it belongs in 4.6, not smuggled
+  into a release that is already this large.
+- **Nothing here is device-tested.** 155 unit tests, 13 contract tests, 52
+  browser checks (snapshot, interaction, extraction, dialog, integration), lint,
+  smoke and doc verification are green; no claim in this entry has been
+  confirmed on the phone.
 
 ### The drishti-mode groundwork (first shipped here)
 

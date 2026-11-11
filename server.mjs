@@ -677,6 +677,9 @@ const tools = {
       const cdp = await getActiveProtocol();
       const snap = await buildSnapshot(cdp, { interactiveOnly, maxNodes, frameId });
       rememberSnapshot(cdp, snap);
+      if (snap.empty) {
+        return { content: [{ type: "text", text: `# snapshot ${snap.id} · empty\n\n${snap.empty}` }] };
+      }
       const header = `# snapshot ${snap.id} · ${snap.stats.refs} refs · ${snap.stats.nodes} nodes` +
         ` · ${snap.stats.elapsedMs}ms${snap.stats.truncated ? " · TRUNCATED (narrow with interactiveOnly or maxNodes)" : ""}`;
       return { content: [{ type: "text", text: `${header}\n\n${snap.text}` }] };
