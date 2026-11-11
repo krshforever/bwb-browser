@@ -1,5 +1,35 @@
 # Changelog
 
+## 4.5.1 — the number in the banner
+
+4.5.0 shipped claiming 27 tools in `bwb --help`, 26 in the README and 28 in
+AGENTS.md. The server exposed 41 in all three cases, and every test passed,
+because nothing was broken — the count was typed by hand in four places and
+`verify:docs` compared documents to each other, never a number to the code.
+
+`bwb --help` is the first thing a human reads. The README is the first thing
+they decide with. Both were understating the release they were describing.
+
+### Fixed
+- `bwb --help` states 41 tools.
+- Every tool count in README.md, AGENTS.md and BENCHMARKS.md states 41; the
+  4.0-era "still 26 tools" note and the stale "26 tools max" budget are gone.
+- The published-tarball figure in the comparison table is 109 kB, not 65 kB —
+  it had not been true since 4.0.
+
+### Added
+- `verify:docs` now fails when any `N tools` claim in README.md, AGENTS.md,
+  BENCHMARKS.md or `server.mjs` disagrees with the tool list the server
+  actually returns, and checks every stated tarball size against a real
+  `npm pack --dry-run`. Source-size checks are case-insensitive now: the old
+  pattern silently ignored every lowercase "kB", which is how the 65 kB
+  tarball claim survived four releases.
+
+### Note
+4.5.0 was published through GitHub Actions with OIDC trusted publishing and a
+SLSA provenance attestation, not from a laptop with a token. Its tarball
+checksum on the registry (`31da0e1…`) is the one CI built and tested.
+
 ## 4.5.0 — "Meridian"
 
 A meridian is the line where two ways of measuring the same place agree. Drishti

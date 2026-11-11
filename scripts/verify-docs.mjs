@@ -1,5 +1,5 @@
 /**
- * Cross-check every place the 27 tools are described against the code.
+ * Cross-check every place the tools are described against the code.
  *
  * Descriptions are what an agent reads before calling a tool, and the docs are
  * what a human reads before trusting it. If they disagree, the agent is the one
@@ -185,13 +185,16 @@ const isDelta = (line, index) => {
   // change, not the current size. Tolerate the "~" that may follow the verb.
   return /\b(?:by|grew|added|more|increase[sd]?|gaining)\s*~?$|\bfrom\s+\d+\s?KB$/i.test(before);
 };
-const SOURCE_CLAIM = /\b~?(\d{2,4})\s?KB\b/g;
+const SOURCE_CLAIM = /\b~?(\d{2,4})\s?k?b\b/gi;
 for (const [file, text] of Object.entries({ ...docTables, "BENCHMARKS.md": benchmarks })) {
   for (const line of text.split("\n")) {
     // Only lines that talk about source size at all are in scope.
     if (!/\b(?:source|Source)\b/.test(line)) continue;
     for (const m of line.matchAll(SOURCE_CLAIM)) {
       if (isDelta(line, m.index)) continue;
+      // A tarball size is not a source size, even when both sit on one line.
+      // §8 measures the tarball against a real `npm pack`.
+      if (/\btarball\b/i.test(line.slice(m.index, m.index + 24))) continue;
       const claimed = Number(m[1]);
       if (![kb - 1, kb, kb + 1].some((c) => c === claimed)) {
         fail(`${file} claims ${claimed}KB of source; server.mjs + lib/ is ${kb}KB`);
@@ -200,6 +203,67 @@ for (const [file, text] of Object.entries({ ...docTables, "BENCHMARKS.md": bench
   }
 }
 console.log(`# source: ${kb}KB · deps: ${Object.keys(pkg.dependencies).length} · tools: ${tools.length}\n`);
+
+// ── 8. Numbers in prose are claims; the code is the fact ────────────────────
+// 4.5.0 shipped "27 tools" in --help, "26 tools" in the README and "28 tools"
+// in AGENTS.md while the server exposed 41. Every check above passed, because
+// they compared documents to each other and never compared a number to the
+// code. A count typed by hand is a claim; this makes it a fact or a failure.
+const serverSrc = readFileSync(new URL("../server.mjs", import.meta.url), "utf8");
+const claimSources = { ...docTables, "BENCHMARKS.md": benchmarks, "server.mjs": serverSrc };
+
+for (const [file, text] of Object.entries(claimSources)) {
+  text.split("\n").forEach((line, i) => {
+    for (const m of line.matchAll(/\b(\d+)\s+(?:MCP\s+)?tools\b/gi)) {
+      if (Number(m[1]) !== tools.length) {
+        fail(
+          `${file}:${i + 1} claims ${m[1]} tools; the server exposes ${tools.length} — "${line.trim().slice(0, 70)}"`,
+        );
+      }
+    }
+  });
+}
+
+// The tarball size changes with every release, so it is measured instead of
+// remembered. Tolerance is ±2 kB: rounding is honest, drift is not.
+const { execFileSync } = await import("node:child_process");
+let packedKb;
+try {
+  const raw = execFileSync("npm", ["pack", "--dry-run", "--json"], {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  const parsed = JSON.parse(raw.slice(raw.indexOf("{")));
+  packedKb = Math.round(Object.values(parsed)[0].size / 1000);
+} catch (e) {
+  fail(`could not measure the packed tarball with npm pack: ${e.message}`);
+}
+
+if (packedKb !== undefined) {
+  // The size has to be attached to the word "tarball", or a line that mentions
+  // both source and tarball ("~306KB source, 109 kB tarball") reports the
+  // source figure as a tarball claim. Two shapes are legitimate: "109 kB
+  // tarball" in prose, "| Published tarball | **109 kB** |" in a table.
+  const TARBALL_CLAIMS = [
+    /(\d{2,4})\s?kB\b[^|\n]{0,4}tarball/gi,
+    /tarball[^\n]{0,14}?(\d{2,4})\s?kB/gi,
+  ];
+  for (const [file, text] of Object.entries(claimSources)) {
+    text.split("\n").forEach((line, i) => {
+      if (!/tarball/i.test(line)) return;
+      for (const re of TARBALL_CLAIMS) {
+        for (const m of line.matchAll(re)) {
+          if (Math.abs(Number(m[1]) - packedKb) > 2) {
+            fail(
+              `${file}:${i + 1} claims a ${m[1]} kB tarball; npm packs ${packedKb} kB — "${line.trim().slice(0, 70)}"`,
+            );
+          }
+        }
+      }
+    });
+  }
+}
 
 // ── Report ───────────────────────────────────────────────────────────────────
 if (problems.length) {

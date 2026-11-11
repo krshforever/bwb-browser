@@ -1,6 +1,6 @@
 # bwb-browser
 
-**Browser Without Bloat** — ~306KB of source, 65 kB tarball. 26 tools. Static-first. Runs on your phone, survives it too.
+**Browser Without Bloat** — 41 tools, 5 runtime dependencies, ~306KB of source. Static-first. Runs on your phone, survives it too.
 
 A lightweight MCP server that gives any AI agent browser superpowers. Written by a guy in India on Termux because the existing tools were 200MB of "why" — then rewritten when Android kept killing those tools mid-run.
 
@@ -28,7 +28,7 @@ bwb speaks **Chrome DevTools Protocol (CDP)** — the protocol Chrome speaks nat
 | Factor | bwb v4 | Playwright MCP | Puppeteer MCP |
 |--------|-----|----------------|---------------|
 | Source size | **~306KB** | ~50MB+ | ~100MB+ |
-| Published tarball | **65 kB** | — | — |
+| Published tarball | **109 kB** | — | — |
 | Total install (npm) | **~62MB, zero browsers** | ~250MB | ~400MB |
 | Bundled browser | **None** | Chromium (~200MB) | Chromium (~300MB) |
 | Chromium spawns for plain pages | **Never (static-first)** | Always | Always |
@@ -152,7 +152,7 @@ bwb drives a **real, logged-in browser** on behalf of a model that is reading pa
 - **Tab journal + lazy restore** — kills become resume points, not disasters. `bwb --setup` prints a survival guide.
 
 ### Breaking
-- `browser_title` + `browser_url` folded into `browser_status.targets` (4.0). Still 26 tools — that's a release gate, enforced in CI.
+- `browser_title` + `browser_url` folded into `browser_status.targets` (4.0). The 4.5 line holds 41 — that count is a release gate, enforced in CI.
 - `browser_export` lost `pdf`/`docx`/`pptx`. They reported `{ready: true}` and wrote nothing. Markdown, txt and html remain.
 - `browser_goto` takes `mode` and `maxChars`; `browser_saveCookies` takes `domains`. `bwb --setup` is a dry run unless you pass `--yes`.
 
@@ -165,7 +165,7 @@ bwb drives a **real, logged-in browser** on behalf of a model that is reading pa
 ```bash
 npm install -g bwb-browser
 bwb --setup --yes     # writes the MCP entry into your agent's config
-bwb --version         # → bwb-browser 4.5.0
+bwb --version         # → bwb-browser 4.5.1
 ```
 
 `bwb --setup` is a **dry run unless you pass `--yes`** — it lists exactly which of your agents' config files it would touch. If you have Chrome/Chromium anywhere on your system, bwb finds it. No config files of your own. No environment variables. Just works.
@@ -357,7 +357,7 @@ Every browser automation tool assumes you have 400MB to spare and a desktop-clas
 
 bwb is engineered against the hardest constraint first: **a memory-pressured device where every megabyte is contested.** No bundled browser. No wrapper frameworks. Just CDP — the protocol Chrome speaks natively, over one thin client — plus a static-fetch ladder so Chromium only starts when JavaScript demands it. Mobile-first isn't a feature here. It's the design spec everything else has to survive.
 
-The result is ~306KB of source that does what 400MB of dependencies do. Not better code — less code, held to budgets: 26 tools max, 5 runtime dependencies, 65 kB tarball, zero native modules. Constraints are features. (The 4.1.0 correctness pass grew the source by ~50KB: a real URL policy, a real element-scoring engine, and the tests that keep them honest.)
+The result is ~306KB of source that does what 400MB of dependencies do. Not better code — less code, held to budgets: 41 tools, 5 runtime dependencies, zero native modules. Constraints are features. (The 4.1.0 correctness pass grew the source by ~50KB: a real URL policy, a real element-scoring engine, and the tests that keep them honest.)
 
 *— Krish Tiwari ([@krshforever](https://github.com/krshforever))*
 

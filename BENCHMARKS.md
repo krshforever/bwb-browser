@@ -74,7 +74,7 @@ Those five rapid-fire timings are from v1, before the static ladder existed — 
 Every other browser MCP needs one of: Playwright/Puppeteer (200–400MB), a proot/Alpine container layer, an Xvfb + window manager, or a desktop. bwb needs Node and Chromium from `pkg`.
 
 ### 2. It is built against the memory budget, not just the feature list
-26 tools max (a release gate, enforced in CI), 5 dependencies, no native modules, a lean profile that caps renderers on a 1GB box, and a resource footer on **every** response so the agent sees pressure before Android's OOM killer does.
+41 tools (a release gate, enforced in CI), 5 dependencies, no native modules, a lean profile that caps renderers on a 1GB box, and a resource footer on **every** response so the agent sees pressure before Android's OOM killer does.
 
 ### 3. It fails visibly
 - A heuristic clicker that cannot decide between "Login" and "Login with Google" returns `candidates` rather than clicking one.

@@ -104,7 +104,7 @@ function printHelp() {
   console.log(`
  bwb-browser v${BWB_VERSION} — Browser Without Bloat
 
-Browser automation for AI agents. Static-first, lean like air. 27 tools.
+Browser automation for AI agents. Static-first, lean like air. 41 tools.
 CDP over one thin client — no Playwright, no Puppeteer, no bundled browser.
 Chromium starts only when JS demands it.
 

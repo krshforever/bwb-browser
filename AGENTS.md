@@ -1,12 +1,12 @@
 # bwb-browser — Agent Integration Guide
 
 > **Author:** Krish Tiwari ([@krshforever](https://github.com/krshforever))
-> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · ~306KB source · 65 kB tarball · 28 tools · static-first (v4)
-> **Last updated:** 2026-08-06
+> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · ~306KB source · 41 tools · 5 runtime deps · static-first (v4)
+> **Last updated:** 2026-11-11
 
 ## What is bwb?
 
-**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. ~306KB source. 28 tools. 5 runtime dependencies. Static-first: plain pages never spawn Chromium. Zero native dependencies.
+**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. ~306KB source. 41 tools. 5 runtime dependencies. Static-first: plain pages never spawn Chromium. Zero native dependencies.
 
 While other MCP browser tools ship a full browser binary (Playwright MCP = ~250MB, Puppeteer MCP = ~400MB), bwb speaks **Chrome DevTools Protocol (CDP)** directly — over one thin CDP client (`chrome-remote-interface`), no Playwright, no Puppeteer, no bundled browser. It auto-detects the browser already on your system.
 
@@ -53,7 +53,7 @@ npm install -g bwb-browser
 
 # 2. Verify it works
 bwb --version
-# → bwb-browser 4.5.0
+# → bwb-browser 4.5.1
 
 # 3. Add to your AI agent's MCP config
 ```
@@ -65,10 +65,10 @@ bwb --version
 Give this to any AI agent (Claude, OpenCode, Gemini, etc.) to auto-install and configure bwb:
 
 ```
-I want you to install and use bwb-browser — a lightweight MCP browser automation server with 26 tools.
+I want you to install and use bwb-browser — a lightweight MCP browser automation server with 41 tools.
 
 bwb is Browser Without Bloat. Static-first: plain pages are fetched + extracted with zero Chromium; JS pages escalate automatically. It uses Chrome DevTools Protocol through one thin CDP client (no Playwright, no Puppeteer) only when rendering is actually needed.
-It has 28 tools including:
+It has 41 tools including:
 
 - `browser_act` — natural language interaction ("search for X", "click the button", "what's on this page")
 - `browser_watch` — live capture of console messages, network requests, JS exceptions, page navigations
