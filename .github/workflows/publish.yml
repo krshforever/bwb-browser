@@ -1,0 +1,76 @@
+# Publish to npm on a tag, with no stored secret.
+#
+# The registry's own rule is the reason this exists: a token that can publish
+# directly either needs an OTP at the moment of publishing or has to carry a
+# 2FA bypass — and bypass tokens stop being able to publish in January 2027.
+# Trusted publishing removes the token entirely: GitHub mints a short-lived
+# OIDC identity, npm checks that it was the workflow we registered, and the
+# tarball gets a provenance attestation as a side effect.
+#
+# One-time setup on npmjs.com → bwb-browser → Settings → Trusted Publisher:
+#   Publisher: GitHub Actions
+#   Organization or user: krshforever
+#   Repository: bwb-browser
+#   Workflow filename: publish.yml
+#   Environment: (leave empty)
+#
+# Until that is registered, this workflow fails at the publish step with
+# "not authorized" and nothing is published — it cannot publish to the wrong
+# place, which is the failure mode worth designing for.
+
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and verify, do not publish"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write # the OIDC identity npm verifies
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # npm >= 11.5 is required for trusted publishing.
+      - name: npm version
+        run: npm install -g npm@latest && npm --version
+
+      - name: Install
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      # The same gate the release was reviewed under. A tag that does not pass
+      # this must not reach the registry.
+      - name: Verify
+        run: npm run lint && npm test && npm run verify:docs && npm run smoke
+
+      - name: Refuse a tag that disagrees with package.json
+        run: |
+          PKG="$(node -p "require('./package.json').version")"
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json $PKG"
+            exit 1
+          fi
+
+      - name: Publish (dry run)
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+        run: npm publish --dry-run
+
+      - name: Publish
+        if: github.event_name == 'push' || !inputs.dry_run
+        run: npm publish --provenance --access public
