@@ -24,6 +24,7 @@ import {
   runDrishtiAware, waitForHandback, waitForApproval,
   cdpErrorInfo, domainFromBlockError, humanStep, createStepReporter,
   pairFlow, generatePairCode, DrishtiPausedError, DEFAULT_PORT,
+  clientId, leaseTab, listDrishtiTabs, releaseTab, closeDrishtiTab,
 } from "../lib/drishti.mjs";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -51,13 +52,20 @@ async function mockDrishti(t, {
   state = () => ({ mode: "AGENT", help: null }),
   pair = null,
   tab = null,
+  tabs = null,
+  lease = null,
   wsServer = false,
 } = {}) {
   const requests = [];
   const helps = [];
   let approvals = [];
   const server = createServer((req, res) => {
-    requests.push({ method: req.method, url: req.url, token: req.headers["x-bwb-token"] || null });
+    requests.push({
+      method: req.method,
+      url: req.url,
+      token: req.headers["x-bwb-token"] || null,
+      client: req.headers["x-bwb-client"] || null,
+    });
     const url = new URL(req.url, "http://127.0.0.1");
     const send = (code, body) => {
       const text = JSON.stringify(body);
@@ -77,6 +85,17 @@ async function mockDrishti(t, {
     if (url.pathname === "/bwb/tab") {
       if (!tab) return send(501, { error: "tab creation is not wired in this build" });
       return send(200, tab);
+    }
+    if (url.pathname === "/bwb/tabs") return send(200, tabs ?? { tabs: [], max: 12 });
+    if (url.pathname === "/bwb/tab/lease") {
+      let body = "";
+      req.on("data", (c) => { body += c; });
+      req.on("end", () => {
+        const parsed = JSON.parse(body || "{}");
+        const answer = lease ? lease(parsed) : { status: 200, json: { tab: { id: parsed.tab }, lease_sec: 120 } };
+        send(answer.status ?? 200, answer.json ?? {});
+      });
+      return;
     }
     if (url.pathname === "/bwb/help") {
       let body = "";
@@ -456,6 +475,80 @@ test("D4 waitForApproval resolves on a resolved help, and reports a denial", asy
   assert.equal(denied.denied, true);
 });
 
+test("D5 silence is not consent: no help and no decision is a timeout, never an approval", async () => {
+  const res = await waitForApproval({
+    domain: "blocked.example",
+    timeoutMs: 60,
+    intervalMs: 5,
+    get: async () => ({ mode: "AGENT", help: null }),
+  });
+  assert.equal(res.approved, false, "a clean AGENT state used to be read as approval");
+  assert.equal(res.denied, false);
+  assert.equal(res.timedOut, true);
+});
+
+test("D5 a denial survives the app clearing `help` — last_help is the record", async () => {
+  // This is the exact shape after the human taps Deny: help goes null, mode
+  // returns to AGENT, and only last_help remembers what happened.
+  const res = await waitForApproval({
+    domain: "blocked.example",
+    timeoutMs: 300,
+    intervalMs: 5,
+    get: async () => ({
+      mode: "AGENT",
+      help: null,
+      last_help: {
+        id: "h10", kind: "site", reason: "Approve blocked.example?",
+        domain: "blocked.example", status: "resolved", approved: false,
+      },
+    }),
+  });
+  assert.equal(res.approved, false);
+  assert.equal(res.denied, true);
+  assert.equal(res.timedOut, false);
+});
+
+test("D5 an approval also survives the clear, and is scoped to its domain", async () => {
+  const lastFor = (domain) => ({
+    id: "h11", kind: "site", reason: `Approve ${domain}?`,
+    domain, status: "resolved", approved: true,
+  });
+
+  const mine = await waitForApproval({
+    domain: "allowed.example",
+    timeoutMs: 200,
+    intervalMs: 5,
+    get: async () => ({ mode: "AGENT", help: null, last_help: lastFor("allowed.example") }),
+  });
+  assert.equal(mine.approved, true);
+
+  // A decision for a different site must not authorise this one.
+  const other = await waitForApproval({
+    domain: "blocked.example",
+    timeoutMs: 60,
+    intervalMs: 5,
+    get: async () => ({ mode: "AGENT", help: null, last_help: lastFor("somewhere-else.example") }),
+  });
+  assert.equal(other.approved, false);
+  assert.equal(other.timedOut, true);
+});
+
+test("D5 a failed help POST does not become permission to retry", async () => {
+  let ran = 0;
+  // The shape drishti uses for a blocked site: CDP error -32001.
+  const err = Object.assign(new Error("domain permission denied"), { code: -32001 });
+  await assert.rejects(
+    () => runDrishtiAware(async () => { ran++; throw err; }, { port: 1, token: "t" }, {
+      approvalTimeoutMs: 60,
+      pollMs: 5,
+      ask: async () => { throw new Error("app already raised its own dialog"); },
+      get: async () => ({ mode: "USER", help: null }),
+    }),
+    (e) => e instanceof DrishtiPausedError,
+  );
+  assert.equal(ran, 1, "the step must not be retried without a decision");
+});
+
 // ─── D5: step reporting ──────────────────────────────────────────────────────
 
 test("D5 humanStep never includes the typed value or the script", () => {
@@ -535,4 +628,56 @@ test("D6 a tab created by the app comes back with the target id, over an authent
   assert.equal(post.method, "POST");
   assert.equal(post.token, TOKEN, "the token travels in a header, not the URL");
   assert.equal(post.url.includes(TOKEN), false, "the token never appears in the request line");
+});
+
+// ─── D7: tabs and leases (contract v2) ───────────────────────────────────────
+
+test("D7 creating a tab carries this client's identity and reports the lease", async (t) => {
+  tempStore(t);
+  const mock = await mockDrishti(t, {
+    tab: { tab: { id: "T1", title: "One", url: "https://example.com" }, leased: true },
+  });
+  writeStore({ token: TOKEN, port: mock.port });
+
+  const info = await openTab({ url: "https://example.com" });
+  assert.equal(info.tabId, "T1");
+  assert.equal(info.leased, true);
+
+  const post = mock.requests.find((r) => r.url === "/bwb/tab");
+  assert.match(post.client, /^bwb-[0-9a-f]{6,}$/, "identity must travel as X-BWB-Client");
+});
+
+test("D7 the client id is stable across calls and survives a restart", async (t) => {
+  tempStore(t);
+  writeStore({ token: TOKEN, port: 1 });
+
+  const first = clientId();
+  assert.equal(clientId(), first, "same process, same identity");
+  assert.equal(readStore()?.clientId, first, "persisted with the pairing, so a restart keeps its leases");
+});
+
+test("D7 a locked tab is a busy answer, not an exception", async (t) => {
+  tempStore(t);
+  const mock = await mockDrishti(t, {
+    lease: () => ({ status: 409, json: { error: "tab_locked", held_by: "agent-a" } }),
+  });
+  writeStore({ token: TOKEN, port: mock.port });
+
+  const res = await leaseTab({ tab: "T1" });
+  assert.equal(res.leased, false);
+  assert.equal(res.heldBy, "agent-a");
+});
+
+test("D7 a granted lease reports its deadline", async (t) => {
+  tempStore(t);
+  const mock = await mockDrishti(t, {
+    lease: () => ({ status: 200, json: { tab: { id: "T1" }, lease_sec: 120 } }),
+  });
+  writeStore({ token: TOKEN, port: mock.port });
+
+  const res = await leaseTab({ tab: "T1" });
+  assert.equal(res.leased, true);
+  assert.equal(res.leaseSec, 120);
+  const sent = mock.requests.find((r) => r.url === "/bwb/tab/lease");
+  assert.ok(sent.client, "a lease without an identity would be ungrantable");
 });
