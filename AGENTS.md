@@ -1,12 +1,12 @@
 # bwb-browser — Agent Integration Guide
 
 > **Author:** Krish Tiwari ([@krshforever](https://github.com/krshforever))
-> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · ~228KB source · 65 kB tarball · 27 tools · static-first (v4)
+> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · ~243KB source · 65 kB tarball · 28 tools · static-first (v4)
 > **Last updated:** 2026-08-06
 
 ## What is bwb?
 
-**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. ~228KB source. 27 tools. 5 runtime dependencies. Static-first: plain pages never spawn Chromium. Zero native dependencies.
+**Browser Without Bloat** — a lightweight MCP server that gives any AI agent browser superpowers. ~243KB source. 28 tools. 5 runtime dependencies. Static-first: plain pages never spawn Chromium. Zero native dependencies.
 
 While other MCP browser tools ship a full browser binary (Playwright MCP = ~250MB, Puppeteer MCP = ~400MB), bwb speaks **Chrome DevTools Protocol (CDP)** directly — over one thin CDP client (`chrome-remote-interface`), no Playwright, no Puppeteer, no bundled browser. It auto-detects the browser already on your system.
 
@@ -68,7 +68,7 @@ Give this to any AI agent (Claude, OpenCode, Gemini, etc.) to auto-install and c
 I want you to install and use bwb-browser — a lightweight MCP browser automation server with 26 tools.
 
 bwb is Browser Without Bloat. Static-first: plain pages are fetched + extracted with zero Chromium; JS pages escalate automatically. It uses Chrome DevTools Protocol through one thin CDP client (no Playwright, no Puppeteer) only when rendering is actually needed.
-It has 27 tools including:
+It has 28 tools including:
 
 - `browser_act` — natural language interaction ("search for X", "click the button", "what's on this page")
 - `browser_watch` — live capture of console messages, network requests, JS exceptions, page navigations
@@ -131,6 +131,7 @@ When using bwb for web tasks, follow these patterns:
 - `browser_text()` — get page text content
 - `browser_screenshot({selector: "#chart"})` — take a screenshot (whole page, viewport, or one element; saves to /storage/emulated/0/Download/bwb-screenshots/ on Android or ~/bwb-screenshots/ on desktop)
 - `browser_html()` — get page HTML
+- `browser_snapshot()` — the accessibility tree with `[ref=e12]` on every actionable node. Take one, then act by ref; re-snapshot after the page changes
 - `browser_elements({kind: "links"|"buttons"|"inputs"|"headings"})` — find interactive elements
 - `browser_status()` — page title/URL live in `targets`, plus resource readings and active profile
 
@@ -177,6 +178,7 @@ internally — not just what it looks like.
 | `browser_text` | Get page/selector visible text |
 | `browser_click` | Click an element (native CDP mouse events) |
 | `browser_fill` | Fill an input field (native CDP keyboard events) |
+| `browser_snapshot` | Accessibility tree with refs — the stable way to act on a page |
 | `browser_elements` | List interactive elements by kind |
 | `browser_download` | Download media (needs system yt-dlp, consent-gated) |
 | `browser_export` | Write md/txt/html inside the export directory (confined; no pdf/docx/pptx) |

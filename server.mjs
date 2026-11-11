@@ -59,6 +59,9 @@ if (["pair", "unpair", "drishti"].includes(process.argv[2])) {
 import {
   gotoUrl, clickElement, fillElement, waitForSelector,
 } from "./lib/helpers.mjs";
+import {
+  buildSnapshot, clickRef, fillRef, StaleRefError,
+} from "./lib/snapshot.mjs";
 
 import {
   getActiveProtocol, createTab, closeTab, switchTab, listTabs, syncActiveTab, clearTabs,
@@ -160,6 +163,7 @@ TOOLS (27):
   INTERACTION:
     browser_click             Click an element
     browser_fill              Fill an input field
+    browser_snapshot          Accessibility tree with clickable refs (start here)
     browser_elements          List interactive elements
     browser_eval              Execute JavaScript
     browser_setViewport       Change viewport size
@@ -372,6 +376,16 @@ const WRITE_TOOLS = new Set([
 ]);
 
 // Tool implementations
+/**
+ * The refs from the most recent browser_snapshot in this process.
+ *
+ * Deliberately not per-tab and not persisted: refs are only meaningful against
+ * the DOM that produced them, and a ref that outlives its snapshot is exactly
+ * the "clicked the wrong thing" failure the model exists to prevent. When the
+ * page moves, the ref resolves to nothing and the client is told to re-snapshot.
+ */
+let lastSnapshot = { id: null, refs: {}, at: 0 };
+
 const tools = {
   // ═══════════════ CORE BROWSING ═══════════════
 
@@ -560,10 +574,23 @@ const tools = {
   // ═══════════════ INTERACTION ═══════════════
 
   browser_click: {
-    description: "Click an element by CSS selector with native CDP mouse events. Scrolls it into view and hit-tests the click point first; the result reports `hit` (whether the point really was that element) and `landedOn` (what was actually there).",
-    schema: { selector: z.string().describe("CSS selector") },
-    handler: async ({ selector }) => {
+    description: "Click an element. Prefer `ref` from browser_snapshot — it is a fact about the node the browser reported, not a guess about the page's CSS. `selector` still works. Scrolls into view and hit-tests the click point first; the result reports `hit` (whether the point really was that element) and `landedOn` (what was actually there).",
+    schema: {
+      selector: z.string().describe("CSS selector (use ref instead when you have one)").optional(),
+      ref: z.string().describe("Ref from the latest browser_snapshot, e.g. e12").optional(),
+    },
+    handler: async ({ selector, ref }) => {
+      if (!selector && !ref) throw new Error("browser_click needs either a ref (from browser_snapshot) or a selector");
       const cdp = await getActiveProtocol();
+      if (ref) {
+        const info = await clickRef(cdp, lastSnapshot.refs, ref);
+        return { content: [{ type: "text", text: JSON.stringify({
+          clicked: ref, element: info.element, via: info.via,
+          hit: info.hit, landedOn: info.landedOn,
+          ...(info.hit && info.landedOn && !String(info.landedOn).startsWith(String(info.element).split(" ")[0])
+            ? { warning: "The click point was covered — something else is on top of this element." } : {}),
+        }) }] };
+      }
       const { Page, Runtime, Input } = cdp;
       const info = await clickElement(Page, Runtime, Input, selector);
       return { content: [{ type: "text", text: JSON.stringify({
@@ -575,10 +602,24 @@ const tools = {
   },
 
   browser_fill: {
-    description: "Clear an input field and fill it with text using native CDP Input.insertText (fires the page's own input events). Existing content is selected first, so the field is replaced, not appended to. Returns the length only — never the text — when the target is a password field or looks like a secret.",
-    schema: { selector: z.string().describe("CSS selector for input"), text: z.string().describe("Text to fill") },
-    handler: async ({ selector, text }) => {
+    description: "Clear a field and replace its content. Prefer `ref` from browser_snapshot; `selector` still works. Uses native CDP Input.insertText, so the page's own input events fire. Returns the length only — never the text — when the field is a password or looks like a secret.",
+    schema: {
+      selector: z.string().describe("CSS selector for the input (use ref instead when you have one)").optional(),
+      ref: z.string().describe("Ref from the latest browser_snapshot, e.g. e12").optional(),
+      text: z.string().describe("Text to fill"),
+    },
+    handler: async ({ selector, ref, text }) => {
+      if (!selector && !ref) throw new Error("browser_fill needs either a ref (from browser_snapshot) or a selector");
       const cdp = await getActiveProtocol();
+      if (ref) {
+        const info = await fillRef(cdp, lastSnapshot.refs, ref, text);
+        const secretField = info.tag === "input" && /pass/i.test(info.element) ||
+          /pass|secret|token|otp|pin|cvv|card/i.test(String(info.element));
+        return { content: [{ type: "text", text: JSON.stringify({
+          filled: ref, element: info.element,
+          ...(secretField ? { length: info.length, redacted: true } : { length: info.length }),
+        }) }] };
+      }
       const { Page, Runtime, Input } = cdp;
       const info = await fillElement(Page, Runtime, Input, selector, text);
       // Redact on what the FIELD is, not only what the selector is called:
@@ -589,6 +630,22 @@ const tools = {
         ? { length: [...String(text)].length, redacted: true }
         : redactIfSecret(selector, text);
       return { content: [{ type: "text", text: JSON.stringify({ filled: selector, ...echo }) }] };
+    },
+  },
+
+  browser_snapshot: {
+    description: "Accessibility tree of the page as indented text, with `[ref=e12]` on every actionable node. The fastest way to understand an unfamiliar page, and the stable way to act on it: pass the ref to browser_click or browser_fill instead of writing CSS. Refs belong to one snapshot — once the page changes, take a new one rather than reusing an old ref.",
+    schema: {
+      interactiveOnly: z.boolean().describe("Only actionable nodes — no headings, landmarks or paragraphs (default false)").optional(),
+      maxNodes: z.number().describe("Cap on nodes walked before truncating (default 600)").optional(),
+    },
+    handler: async ({ interactiveOnly = false, maxNodes = 600 }) => {
+      const cdp = await getActiveProtocol();
+      const snap = await buildSnapshot(cdp, { interactiveOnly, maxNodes });
+      lastSnapshot = { id: snap.id, refs: snap.refs, at: Date.now() };
+      const header = `# snapshot ${snap.id} · ${snap.stats.refs} refs · ${snap.stats.nodes} nodes` +
+        ` · ${snap.stats.elapsedMs}ms${snap.stats.truncated ? " · TRUNCATED (narrow with interactiveOnly or maxNodes)" : ""}`;
+      return { content: [{ type: "text", text: `${header}\n\n${snap.text}` }] };
     },
   },
 

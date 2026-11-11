@@ -19,7 +19,8 @@
     "lint": "for f in server.mjs lib/*.mjs; do node --check \"$f\" || exit 1; done",
     "smoke": "node test/smoke.mjs",
     "test:browser": "node --test test/integration.mjs",
-    "test:all": "npm run lint && npm test && npm run verify:docs && npm run smoke && npm run test:browser",
+    "test:snapshot": "node --test test/snapshot.browser.mjs",
+    "test:all": "npm run lint && npm test && npm run verify:docs && npm run smoke && npm run test:snapshot && npm run test:browser",
     "verify:docs": "node scripts/verify-docs.mjs"
   },
   "keywords": [
