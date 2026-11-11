@@ -1,6 +1,9 @@
 # Changelog
 
-## 4.5.1 — the number in the banner
+## 4.5.1 — the same release, with its numbers corrected
+
+4.5.0 **is** Meridian. This is Meridian re-cut under a new number because the
+number is the only part of a published package that can change.
 
 4.5.0 shipped claiming 27 tools in `bwb --help`, 26 in the README and 28 in
 AGENTS.md. The server exposed 41 in all three cases, and every test passed,
