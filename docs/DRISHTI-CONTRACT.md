@@ -350,6 +350,14 @@ X-BWB-Client: bwb-a1b2c3
 that client in the same round trip, so two agents creating tabs simultaneously
 cannot end up sharing one.
 
+**`tab.id` is a registry id, not a CDP target id.** WebView offers no mapping
+from a `WebView` instance to its devtools target, so the app genuinely cannot
+answer with one — do not pretend it can. A client that needs to attach diffs
+`/json/list` around the create call: the page target that appeared is the tab it
+asked for. If more than one appeared, match on `url`; if that is still
+ambiguous, report the failure instead of attaching to a tab that may be the
+human's.
+
 Errors: `409 {"error":"tab_limit"}` · `503 {"error":"tab_ui_unavailable"}` (no
 Activity attached) · `503 {"error":"tab_command_failed"}` · `503
 {"error":"tab_command_queue_full"}`.

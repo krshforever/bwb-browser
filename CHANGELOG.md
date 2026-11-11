@@ -35,7 +35,18 @@ it. This release is the handshake between them.
   family and bwb degrades with a named reason rather than pretending.
 - `POST /bwb/tab` answers `201 {"tab":{…},"leased":bool}` instead of `200 {"id"}`.
 
-### The drishti-mode groundwork (unreleased from 4.1.0)
+### Known gaps
+- **Leases are advisory, not enforced.** `bwb` leases the tabs it creates, and
+  `GET /bwb/tabs` tells every agent who holds what, but an ordinary CDP write
+  does not lease the tab first: the app cannot map a CDP target id to a registry
+  tab id yet, so bwb has nothing to lease *against* before it acts. Two agents
+  on one tab are discouraged, not blocked. Enforcement is the next release and
+  it needs the relay to own the WebSocket path.
+- **Nothing here is device-tested.** 146 unit tests, 13 contract tests, 21
+  browser integration tests, lint, smoke and doc verification are green; no
+  claim in this entry has been confirmed on the phone.
+
+### The drishti-mode groundwork (first shipped here)
 
 A first-class mode for driving [drishti](https://github.com/krshforever/drishti),
 the Android WebView browser, instead of treating it as a generic attach target.

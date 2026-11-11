@@ -584,6 +584,40 @@ test("D7 the doctor says 'pre-v2 build' instead of failing silently", async (t) 
   assert.match(leases.detail, /pre-contract v2/);
 });
 
+// ─── D8: target discovery (the app cannot answer with a target id) ───────────
+
+test("D8 the tab bwb asked for is the target that appeared, and only that one", async () => {
+  const { pickNewTarget } = await import("../lib/tabs.mjs");
+  const before = [{ id: "A", type: "page", url: "https://a.test/" }];
+  const after = [
+    { id: "A", type: "page", url: "https://a.test/" },
+    { id: "B", type: "page", url: "https://example.com/" },
+  ];
+  assert.equal(pickNewTarget(before, after, "https://example.com").id, "B");
+});
+
+test("D8 two tabs appearing at once are disambiguated by url, and never guessed", async () => {
+  const { pickNewTarget } = await import("../lib/tabs.mjs");
+  const before = [{ id: "A", type: "page", url: "https://a.test/" }];
+  const after = [
+    { id: "A", type: "page", url: "https://a.test/" },
+    { id: "HUMAN", type: "page", url: "https://news.test/" },
+    { id: "OURS", type: "page", url: "https://example.com/" },
+  ];
+  assert.equal(pickNewTarget(before, after, "https://example.com").id, "OURS");
+  // Nothing to match on: refusing beats attaching to the human's tab.
+  assert.equal(pickNewTarget(before, after, null), null);
+  assert.equal(pickNewTarget(before, after, "https://elsewhere.test"), null);
+});
+
+test("D8 a create that produced no new target is reported, not attached to the wrong tab", async () => {
+  const { pickNewTarget } = await import("../lib/tabs.mjs");
+  const before = [{ id: "A", type: "page", url: "https://a.test/" }];
+  assert.equal(pickNewTarget(before, before, "https://example.com"), null);
+  // Non-page targets (workers, iframes) are not tabs.
+  assert.equal(pickNewTarget([], [{ id: "W", type: "worker", url: "" }], "https://example.com"), null);
+});
+
 // ─── D5: step reporting ──────────────────────────────────────────────────────
 
 test("D5 humanStep never includes the typed value or the script", () => {
