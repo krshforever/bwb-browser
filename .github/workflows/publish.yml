@@ -41,14 +41,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Trusted publishing needs Node >= 22.14.0 and npm >= 11.5.1. Pinned, not
+      # floated: a runner image that silently drops below 22.14 would fail here
+      # with a confusing "not authorized" instead of a clear version error.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.14.0
           registry-url: https://registry.npmjs.org
 
-      # npm >= 11.5 is required for trusted publishing.
       - name: npm version
-        run: npm install -g npm@latest && npm --version
+        run: npm install -g npm@latest && node --version && npm --version
 
       - name: Install
         run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
@@ -58,14 +60,25 @@ jobs:
       - name: Verify
         run: npm run lint && npm test && npm run verify:docs && npm run smoke
 
-      - name: Refuse a tag that disagrees with package.json
+      # A tag that disagrees with package.json must never reach the registry.
+      # A manual dispatch has no tag (GITHUB_REF_NAME is the branch), so there we
+      # read the version from package.json and print exactly what will be
+      # published — the guard is "these two agree", not "a tag exists".
+      - name: Resolve the version being published
+        id: v
         run: |
           PKG="$(node -p "require('./package.json').version")"
-          TAG="${GITHUB_REF_NAME#v}"
-          if [ "$PKG" != "$TAG" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match package.json $PKG"
-            exit 1
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME#v}"
+            if [ "$PKG" != "$TAG" ]; then
+              echo "::error::tag $GITHUB_REF_NAME does not match package.json $PKG"
+              exit 1
+            fi
+            echo "Publishing $PKG from tag $GITHUB_REF_NAME"
+          else
+            echo "Publishing $PKG from a manual dispatch on $GITHUB_REF_NAME (no tag to check)"
           fi
+          echo "version=$PKG" >> "$GITHUB_OUTPUT"
 
       - name: Publish (dry run)
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run
