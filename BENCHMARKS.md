@@ -1,13 +1,13 @@
 # bwb-browser — Benchmarks & Comparison
 
-> **bwb**: ~306KB source, 65 kB tarball, 26 tools, 5 runtime dependencies, no bundled browser
+> **bwb**: ~306KB source, 109 kB tarball, 41 tools, 5 runtime dependencies, no bundled browser
 > Numbers refreshed for 4.1.0. Figures marked *(measured)* come from runs on the author's machine; anything else is an approximate published size and should be re-verified before you quote it.
 
 ## Size Comparison
 
 | Tool | Package size | Runtime deps | Browser engine | Termux? | Setup time |
 |------|--------------|--------------|----------------|---------|-----------|
-| **bwb-browser** | **65 kB** | **5** | CDP over a thin client | ✅ Native | **5 seconds** |
+| **bwb-browser** | **109 kB** | **5** | CDP over a thin client | ✅ Native | **5 seconds** |
 | Playwright MCP | 200+ MB | 30+ | Playwright (bundled Chromium) | ❌ | 5+ minutes |
 | Chrome DevTools MCP | 300+ MB | 50+ | Puppeteer | ❌ | 5+ minutes |
 | Puppeteer MCP | 400+ MB | 50+ | Puppeteer | ❌ | 5+ minutes |
@@ -26,6 +26,30 @@ The headline of v4 is not a benchmark, it is an absence: for a plain article, **
 | Logged-in page (cookies loaded) | `browser` | yes | 2–15s |
 
 A single YouTube tab costs **746MB** of Chromium tree RSS *(measured, Termux/Android)*. That is why the ladder exists and why the resource footer exists.
+
+## What the two ways of reading a page cost *(measured 2026-11-11)*
+
+A deliberately hostile fixture: minimal markup, 60 table rows, 20 nav links, and
+248 actionable nodes. Token estimates are `chars / 4`.
+
+| Tool | Characters | Tokens (est.) |
+|------|-----------|---------------|
+| `browser_html` | 7,160 | 1,790 |
+| `browser_text` | 2,122 | 531 |
+| `browser_snapshot` | 7,561 | 1,891 |
+| `browser_snapshot {interactiveOnly: true}` | 6,898 | 1,725 |
+| `browser_extract {kind: "tables"}` | 2,320 | 580 |
+
+Read that honestly: on this page the snapshot is **not smaller** than the HTML.
+That is what a fixture with almost no markup does — real pages carry classes,
+wrappers and scripts that the accessibility tree drops entirely, so the ratio
+moves the snapshot's way. The point of the snapshot was never that it is
+shorter; it is that 248 nodes come back *addressable*, and no CSS selector has
+to be invented or re-invented when the page changes.
+
+Where the win is measurable is extraction: the same table is **3x fewer
+characters** as rows than as HTML, because `browser_extract` returns the data
+and not the boxes around it.
 
 ## Live Demo Results (2026-07-28, Termux/Android)
 
