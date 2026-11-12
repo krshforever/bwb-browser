@@ -45,9 +45,12 @@ jobs:
         with:
           node-version: "22"
       - run: npm pack --dry-run
-      # The release gate: tool count must not creep.
-      - name: tool count is still 26
+      # The release gate: tool count must not creep. 41 tools = 40 `browser_*`
+      # keys plus `needs_human`. This step said "26" for four releases after the
+      # 4.0 era ended, so the gate had been red — or rather, it had been failing
+      # loudly and being ignored, which is worse than absent.
+      - name: tool count is still 41
         run: |
-          COUNT=$(grep -c '^  browser_' server.mjs || true)
-          echo "browser_* tool keys in server.mjs: $COUNT"
-          test "$COUNT" -eq 26
+          COUNT=$(grep -cE '^  (browser_[a-z0-9_]*|needs_human):' server.mjs || true)
+          echo "tool keys in server.mjs: $COUNT"
+          test "$COUNT" -eq 41
