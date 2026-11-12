@@ -60,7 +60,7 @@ import {
   gotoUrl, clickElement, fillElement, waitForSelector,
 } from "./lib/helpers.mjs";
 import {
-  buildSnapshot, clickRef, fillRef, StaleRefError,
+  buildSnapshot, clickRef, fillRef, clickWarning, StaleRefError,
 } from "./lib/snapshot.mjs";
 import {
   hoverRef, selectRef, pressKey, scroll, dragRef, waitFor,
@@ -620,8 +620,7 @@ const tools = {
         return { content: [{ type: "text", text: JSON.stringify({
           clicked: ref, element: info.element, via: info.via,
           hit: info.hit, landedOn: info.landedOn,
-          ...(info.hit && info.landedOn && !String(info.landedOn).startsWith(String(info.element).split(" ")[0])
-            ? { warning: "The click point was covered — something else is on top of this element." } : {}),
+          ...(clickWarning(info) ? { warning: clickWarning(info) } : {}),
         }) }] };
       }
       const { Page, Runtime, Input } = cdp;
@@ -629,7 +628,7 @@ const tools = {
       return { content: [{ type: "text", text: JSON.stringify({
         clicked: selector, tag: info.tag, text: info.text,
         hit: info.hit, landedOn: info.landedOn,
-        ...(info.hit === false ? { warning: "The click point was covered or off-screen — the click may have missed." } : {}),
+        ...(clickWarning(info) ? { warning: clickWarning(info) } : {}),
       }) }] };
     },
   },
