@@ -1382,7 +1382,10 @@ async function notesForThisCall() {
   if (!dctx) return "";
   if (!steeringFeed) {
     steeringFeed = new NoteFeed({
-      fetchNotes: (after) => getNotes({ ...dctx, after, timeoutMs: 800 }),
+      // Resolve the token per call, not once at startup. Re-pairing mid-session
+      // replaces it, and a client pinned to the old one would 401, go quiet for
+      // 30 s and look exactly like "the human has not said anything".
+      fetchNotes: (after) => getNotes({ port: dctx.port, after, timeoutMs: 800 }),
     });
   }
   return steeringFeed.next();
