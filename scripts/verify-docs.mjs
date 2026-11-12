@@ -234,7 +234,12 @@ try {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"],
   });
-  const parsed = JSON.parse(raw.slice(raw.indexOf("{")));
+  // npm has printed trailing chatter after the JSON on some versions (the
+  // runner's npm 10 appends a notice line), so take the outer braces, not
+  // everything after the first one.
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  const parsed = JSON.parse(raw.slice(start, end + 1));
   packedKb = Math.round(Object.values(parsed)[0].size / 1000);
 } catch (e) {
   fail(`could not measure the packed tarball with npm pack: ${e.message}`);
