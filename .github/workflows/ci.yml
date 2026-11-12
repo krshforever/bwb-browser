@@ -51,6 +51,6 @@ jobs:
       # loudly and being ignored, which is worse than absent.
       - name: tool count is still 41
         run: |
-          COUNT=$(grep -cE '^  (browser_[a-z0-9_]*|needs_human):' server.mjs || true)
+          COUNT=$(grep -cE '^  (browser_[A-Za-z0-9_]*|needs_human):' server.mjs || true)
           echo "tool keys in server.mjs: $COUNT"
           test "$COUNT" -eq 41
