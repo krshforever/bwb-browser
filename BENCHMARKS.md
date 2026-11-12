@@ -1,13 +1,13 @@
 # bwb-browser — Benchmarks & Comparison
 
-> **bwb**: ~306KB source, 109 kB tarball, 41 tools, 5 runtime dependencies, no bundled browser
+> **bwb**: ~321KB source, 112 kB tarball, 41 tools, 5 runtime dependencies, no bundled browser
 > Numbers refreshed for 4.1.0. Figures marked *(measured)* come from runs on the author's machine; anything else is an approximate published size and should be re-verified before you quote it.
 
 ## Size Comparison
 
 | Tool | Package size | Runtime deps | Browser engine | Termux? | Setup time |
 |------|--------------|--------------|----------------|---------|-----------|
-| **bwb-browser** | **109 kB** | **5** | CDP over a thin client | ✅ Native | **5 seconds** |
+| **bwb-browser** | **112 kB** | **5** | CDP over a thin client | ✅ Native | **5 seconds** |
 | Playwright MCP | 200+ MB | 30+ | Playwright (bundled Chromium) | ❌ | 5+ minutes |
 | Chrome DevTools MCP | 300+ MB | 50+ | Puppeteer | ❌ | 5+ minutes |
 | Puppeteer MCP | 400+ MB | 50+ | Puppeteer | ❌ | 5+ minutes |

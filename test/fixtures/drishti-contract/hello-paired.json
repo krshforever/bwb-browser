@@ -11,11 +11,12 @@
     "status": 200,
     "json": {
       "app": "drishti",
-      "version": "1.0.0",
+      "version": "1.0.2",
       "contract": 2,
       "paired": true,
       "capabilities": [
         "core",
+        "note",
         "history",
         "downloads",
         "tabs",

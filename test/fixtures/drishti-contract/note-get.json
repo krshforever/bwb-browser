@@ -1,0 +1,26 @@
+{
+  "contract": 2,
+  "name": "note-get",
+  "request": {
+    "method": "GET",
+    "path": "/bwb/notes?after=note_0a0b0c0d",
+    "headers": {
+      "X-BWB-Token": "0123456789abcdef0123456789abcdef"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "notes": [
+        {
+          "id": "note_1a2b3c4d",
+          "text": "no, the second link",
+          "at": 1763000000000
+        }
+      ],
+      "cursor": "note_1a2b3c4d",
+      "cursor_unknown": false
+    }
+  }
+}

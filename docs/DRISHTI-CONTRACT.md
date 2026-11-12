@@ -14,6 +14,14 @@
 
 **Version:** 2 · **Transport:** HTTP/1.1 over loopback only, `127.0.0.1:9222`.
 
+**Revision — additive.** This revision adds `POST /bwb/note` and `GET /bwb/notes`
+(§5.1, §5.2) and the always-on `note` capability. No existing path, field,
+status code or rule changed; `contract` in `/bwb/hello` stays `2`, because that
+is what this build reports and an older client is not broken by an endpoint it
+never calls. **Feature-detect on `capabilities`, not on the number:** 1.0.0 and
+1.0.1 also answer `contract: 2` and do not know about notes, so the presence of
+`"note"` in the capability list is what tells a client the two paths exist.
+
 ---
 
 ## 0. Rules that apply to every endpoint
@@ -71,11 +79,12 @@ GET /bwb/hello
 ```json
 {
   "app": "drishti",
-  "version": "1.0.0",
-  "contract": 1,
+  "version": "1.0.2",
+  "contract": 2,
   "paired": false,
   "capabilities": [
     "core",
+    "note",
     "history",
     "downloads",
     "tabs",
@@ -105,6 +114,9 @@ GET /bwb/hello
 
 ### Capabilities
 - `"core"`: always on. Basic navigation, DOM inspection, clicking, keyboard input, screenshotting.
+- `"note"`: always on. The human's one-way steering notes (§5.1, §5.2). No Settings
+  toggle on purpose: disabling the channel would strand a person watching the agent
+  do the wrong thing.
 - Optional capabilities configurable in app Settings:
   - `"history"`: navigation history traversal.
   - `"downloads"`: managing and initiating file downloads.
@@ -300,6 +312,102 @@ long-poll returns. The human's **Hand back** resolves it with `approved:true`;
 For `kind:"site"`, a resolved-and-approved help additionally adds `domain` to
 the allowlist, so the retried command passes.
 
+The two endpoints below run the same human channel in the other direction: §5 is
+the agent asking a human, §5.1 and §5.2 are the human answering unprompted.
+
+### 5.1 `POST /bwb/note` — the human corrects the agent (auth)
+
+```http
+POST /bwb/note
+X-BWB-Token: <token>
+Content-Type: application/json
+
+{ "text": "no, the second link" }
+```
+
+`201 Created`
+
+```json
+{ "id": "note_1a2b3c4d", "at": 1763000000000 }
+```
+
+| field | type | notes |
+|---|---|---|
+| `text` | string | required; trimmed; 1–2000 characters after trimming |
+| `id` | string | `note_` + 8 hex characters; also the cursor for §5.2 |
+| `at` | int | epoch milliseconds from the app clock |
+
+The app buffers the text and does not interpret it. Nothing on this endpoint
+carries a reply, a decision, or a status for the human to read back.
+
+| status | body | when |
+|---|---|---|
+| `201` | `{"id":"note_…","at":…}` | stored in the pending buffer |
+| `400` | `{"error":"note_empty"}` | `text` missing, blank, or whitespace only |
+| `400` | `{"error":"note_too_long:2000 chars"}` | over 2000 characters after trimming |
+| `400` | `{"error":"Invalid JSON payload: …"}` | body is not JSON |
+| `413` | — | body over 64 KiB (rule 5) |
+| `401` | `{"error":"Unauthorized"}` | missing or wrong token (rule 2) |
+
+The caps are a buffer rule, not an error path: 32 pending notes of up to 2000
+characters each. Adding a 33rd evicts the **oldest** and still answers `201` —
+drop-oldest, never `429`. A note the agent never collected is not a reason to
+refuse the note the human just typed.
+
+### 5.2 `GET /bwb/notes?after=<id>` — what the human has said (auth)
+
+```http
+GET /bwb/notes?after=note_1a2b3c4d
+```
+
+`200 OK`
+
+```json
+{ "notes": [ { "id": "note_1a2b3c4d", "text": "no, the second link", "at": 1763000000000 } ],
+  "cursor": "note_1a2b3c4d",
+  "cursor_unknown": false }
+```
+
+| field | type | notes |
+|---|---|---|
+| `after` | string? | query parameter: the last note id the caller has consumed |
+| `notes` | object[] | pending notes, oldest first; `[]` when nothing is waiting |
+| `notes[].id` | string | `note_` + 8 hex |
+| `notes[].text` | string | the human's sentence, trimmed, ≤ 2000 characters |
+| `notes[].at` | int | epoch milliseconds, the same clock as §5.1 |
+| `cursor` | string | pass as `after` next call; echoes `after` when nothing new arrived, `""` if no note was ever issued |
+| `cursor_unknown` | bool | `true` when `after` was not found in the buffer |
+
+Rules:
+
+- **Ascending, oldest first.** Ids and `at` increase with time; a client may rely
+  on the order and need not sort.
+- **`after` is optional.** Omitted or blank → the whole pending buffer with
+  `cursor_unknown:false`, which is what a client does on its first call.
+- **A found cursor means strict continuation.** Everything after that id, never
+  that id itself. Advance `cursor` after consuming and no note is returned twice.
+- **A lost cursor is admitted, not papered over.** If `after` was evicted, or was
+  never a real id, the answer is the whole buffer plus `cursor_unknown:true`. The
+  client knows it may have missed notes; it is not told a clean gap happened.
+- **No push exists.** The relay opens no connection to the client and holds no
+  subscription. A note waits in the buffer until the client asks.
+- **In memory only.** The buffer is not persisted; a process restart drops
+  undelivered notes.
+
+`note` is advertised in `hello` and always on. It has no Settings toggle and no
+`capability_disabled:note` path on either route: the only refusal is `401`, because
+a human watching a wrong click loop must not be able to discover that the way to
+stop it was switched off in a menu.
+
+**Why one-way.** The human types a correction while the agent is driving; the
+agent reads it on its next tool call. That is the whole feature, not a stub of a
+chat: no conversation UI, no reply field, no reply endpoint, and none planned.
+Delivery is pull-based because the relay has no push channel, so the client's
+next call *is* the delivery. The strict cursor is what keeps this honest — a note
+is returned at most once per advancement, and a client that never calls the
+endpoint has visibly chosen not to be steered rather than silently lost the
+message.
+
 ---
 
 ## 6. Tabs — one registry, one writer per tab (auth)
@@ -494,7 +602,7 @@ The app Settings screen allows the user to configure:
 
 ```json
 {
-  "contract": 1,
+  "contract": 2,
   "name": "pair-pending",
   "request": { "method": "GET", "path": "/bwb/pair?code=7QK2M9XA",
                "headers": {}, "body": null },
@@ -507,3 +615,8 @@ Tests assert that the response **contains** every key/value in `response.json`
 is exact. `null` bodies are asserted as empty. The same manifest hash must
 appear in both repos; a mismatch means the contract was edited in one place and
 is a failing test, not a merge conflict to resolve later.
+
+The steering-note paths (§5.1, §5.2) are specified here but not yet frozen as
+fixtures; until `note-post` and `note-get` exist in both fixture sets, the
+coverage assertion in `contract.test.mjs` treats them as documented without a
+fixture.

@@ -3,8 +3,8 @@
 > **One-line thesis:** how to install bwb, wire it into an agent, and drive a
 > real browser without doing the five things that break pages.
 >
-> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · 41 tools · 5 runtime dependencies · ~306KB source · MIT
-> **Last updated:** 2026-11-11 · **Version:** 4.5.1
+> **Package:** [`bwb-browser`](https://www.npmjs.com/package/bwb-browser) · 41 tools · 5 runtime dependencies · ~321KB source · MIT
+> **Last updated:** 2026-11-11 · **Version:** 4.6.0
 
 This file has two readers. Humans read it to install bwb in sixty seconds.
 Agents read it because someone pasted it into a prompt. Both need the same
@@ -41,7 +41,7 @@ Two behaviours that are not obvious and matter more than any single tool:
 npm install -g bwb-browser
 bwb --setup          # dry run: lists the agent configs it would touch
 bwb --setup --yes    # apply, with timestamped backups
-bwb --version        # → bwb-browser 4.5.1
+bwb --version        # → bwb-browser 4.6.0
 ```
 
 `bwb --setup` detects OpenCode, Claude Code, Antigravity, Hermes, Cline,

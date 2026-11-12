@@ -8,6 +8,45 @@ as wrong, with the test that now catches them.
 > Reading older entries: a tool-count gate of "≤26" was the gate of *that*
 > release. 4.5 raised it to 41. Counts in old entries are history, not promises.
 
+## 4.6.0 — the human can interrupt
+
+Before this, correcting an agent mid-flight meant leaving the browser it was
+driving: switch to Termux, kill the task, retype the whole instruction, lose the
+context it had built. Now it costs one sentence, typed where you are already
+looking.
+
+This is a minor bump, not a patch, because it adds surface: two subcommands and
+a new thing that happens after every tool call. The routes it talks to ship in
+`drishti` 1.0.2; against anything older the client detects a 404 and goes quiet.
+
+### Added
+- **`bwb note "no, the second link"`** posts a steering note to the app
+  (`POST /bwb/note`, contract §5.1). `bwb notes` peeks at the backlog without
+  consuming it, so watching the queue does not steal the note from the agent.
+- **Notes ride on the next tool result**, as
+  `[human, typed in the browser 12s ago] no, the second link` — appended after
+  the resource footer, so it is the freshest thing the model reads. Capped at
+  five lines plus `…and N more`; a multi-line paste collapses to one line so it
+  cannot break the shape of the block.
+- **The pull cursor is persisted** to `~/.config/bwb/notes-cursor.json` (0600,
+  temp file + rename). A restart resumes instead of replaying notes the agent
+  already saw, which is the difference between a correction and a nag.
+
+### Fixed
+- A missing note channel is not an error: an app that answers `404` (anything
+  before the note release) puts the client quiet for 30 s instead of paying a
+  failed request on every tool call for the rest of the session. Same for a
+  relay that hangs. A steering channel that can fail a tool call is a channel
+  the agent learns to fear.
+
+### Tested
+- `test/notes.test.mjs`: 19 tests. Delivery exactly once, cursor survival across
+  a restart, a corrupt cursor file, `cursor_unknown` warning, 404 tolerance,
+  timeout tolerance, local rejection of empty and over-length text. Suite: 178
+  passing.
+
+---
+
 ## 4.5.1 — the same release, with its numbers corrected
 
 4.5.0 **is** Meridian. This is Meridian re-cut under a new number because the

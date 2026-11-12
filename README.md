@@ -11,10 +11,10 @@ On this phone, one YouTube tab costs **746MB**. That number is the design.
 ```bash
 npm install -g bwb-browser
 bwb --setup --yes      # writes the MCP entry into every agent it finds
-bwb --version          # → bwb-browser 4.5.1
+bwb --version          # → bwb-browser 4.6.0
 ```
 
-**41 tools · 5 dependencies · ~306KB of source · 109 kB tarball · no bundled browser · MIT**
+**41 tools · 5 dependencies · ~321KB of source · 112 kB tarball · no bundled browser · MIT**
 
 Those five dependencies are `@modelcontextprotocol/sdk`, `chrome-remote-interface`, `linkedom`, `@mozilla/readability` and `zod`. No `postinstall` that phones home, no native build step, no forty minutes of `npm install` while you make tea.
 
@@ -60,7 +60,7 @@ Subtraction is the entire answer. No bundled browser, no wrapper framework, no d
 | Chromium for a plain page | **Never** | Always |
 | Time to first page | **Milliseconds** | One Chromium boot |
 | Runtime dependencies | **5** | — |
-| Install | **109 kB tarball** | Hundreds of MB |
+| Install | **112 kB tarball** | Hundreds of MB |
 | Termux / Android | **Runs** | Does not |
 | 1GB box / phone OOM | **Sheds load, journals tabs, tells the agent** | Dies mid-run, politely |
 | Console + network history | **Always recording, metadata only** | Opt-in, or absent |
@@ -224,6 +224,8 @@ One honest number, because you'd find it anyway: on a dense page the accessibili
 bwb pair        # a code goes to the phone; approve it there
 bwb             # auto-detects the paired token and the app
 bwb drishti     # doctor: pairing, relay, app, contract, token, tabs, leases, control
+bwb note "no, the second link"   # steer the running agent, mid-flight
+bwb notes       # peek at the backlog without consuming it
 ```
 
 One tap to pair, and the agent is a guest in the browser you are holding. This is the only setup in the world where "attach the debugger" means physically gripping the phone.
@@ -238,12 +240,13 @@ The app is built on Android's WebView — the same engine inside Chrome, shipped
 - **The human cannot be locked out of their own phone.** No lease, no queue, no "please wait".
 - **The phone shows what bwb is doing** in plain language ("Clicking #submit"), never typed values or page content.
 - **It asks, it never bypasses.** Logins, captchas, 2FA and payments go through `needs_human`, which asks the person holding the device and waits.
+- **Steering is not chat.** You watch a click go to the wrong thing, tap the sheet, type "no, the second link" — and it appears in the agent's very next tool result. There is no reply field, no reply route, and none planned: delivery is pull, because the relay has no channel to push through, and the cursor never hands the same note over twice. A note you send is a correction to the plan, not the opening of a conversation. From Termux, `bwb note "…"` does the same thing.
 
 ```text
 ✓ paired: token ••••a1b2 on port 9222
 ✓ relay: listening on 127.0.0.1:9222
 ✓ app: Drishti 1.0.0
-✓ contract: v2 (tab leases, last_help) · 9 capabilities
+✓ contract: v2 (tab leases, last_help) · 10 capabilities
 ✓ token: WebView (Android-Package: com.bwb.drishti)
 ✓ tabs: 3 page target(s)
 ✓ leases: 2/12 tabs, 1 leased (3f2a9c4e→bwb-a1b2c3)

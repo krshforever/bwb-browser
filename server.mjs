@@ -51,7 +51,7 @@ if (process.argv.includes('--setup')) {
 
 // ─── Terminal subcommands (not MCP flags) ─────────────────────────
 // `bwb pair` / `bwb unpair` / `bwb drishti` talk to the app, print, and exit.
-if (["pair", "unpair", "drishti"].includes(process.argv[2])) {
+if (["pair", "unpair", "drishti", "note", "notes"].includes(process.argv[2])) {
   const { runCli } = await import('./lib/drishti-cli.mjs');
   process.exit(await runCli(process.argv[2], process.argv.slice(3)));
 }
@@ -88,7 +88,7 @@ import { assertNavigable, assertHttpUrl, UrlPolicyError } from "./lib/urlpolicy.
 import {
   applyDrishtiDefaults, detectDrishti, resolveContext, maskToken,
   humanStep, createStepReporter, runDrishtiAware, askHelp,
-  waitForHandback, DrishtiPausedError,
+  waitForHandback, DrishtiPausedError, NoteFeed, getNotes,
 } from "./lib/drishti.mjs";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -1372,6 +1372,22 @@ async function runDrishtiStep(name, args, inner) {
   }
 }
 
+// ─── Steering notes (contract §5.1 / §5.2) ──────────────────────────────────
+// The human types a correction in the app while the agent is working. It is
+// pulled, not pushed — the relay has no way to reach us — so it rides on the
+// next tool result. Created lazily: a session that never pairs pays nothing.
+let steeringFeed = null;
+
+async function notesForThisCall() {
+  if (!dctx) return "";
+  if (!steeringFeed) {
+    steeringFeed = new NoteFeed({
+      fetchNotes: (after) => getNotes({ ...dctx, after, timeoutMs: 800 }),
+    });
+  }
+  return steeringFeed.next();
+}
+
 for (const [name, tool] of Object.entries(tools)) {
   const inner = tool.handler;
   server.tool(name, tool.description, tool.schema, async (args) => {
@@ -1461,6 +1477,10 @@ for (const [name, tool] of Object.entries(tools)) {
       }
       if (result && Array.isArray(result.content)) {
         result.content.push({ type: "text", text: resourceFooter(sample, note, { guest: Boolean(attached || (cfg.drishti && dctx)) }) });
+        // Last, so it is the freshest thing the model reads: the human may have
+        // changed their mind while this very call was running.
+        const steering = await notesForThisCall();
+        if (steering) result.content.push({ type: "text", text: steering });
       }
     } catch {}
     return result;
