@@ -1079,11 +1079,25 @@ const tools = {
   },
 
   browser_listTabs: {
-    description: "List all open browser tabs with their IDs, titles, URLs, and active status.",
+    description: "List all open browser tabs with their IDs, titles, URLs, and active status. In Drishti mode the app owns the tabs, so they come back with owned:false — readable, not yours to navigate or close.",
     schema: {},
     handler: async () => {
-      const result = listTabs();
-      return { content: [{ type: "text", text: JSON.stringify({ tabs: result, count: result.length }) }] };
+      let result = listTabs();
+      let source = "registry";
+      // A guest has no registry of its own: the tabs belong to the app the
+      // human is holding. Ask the app, and mark every one owned:false — the
+      // same rule browser_status follows, so the two tools cannot disagree.
+      if (result.length === 0 && cfg.drishti && dctx) {
+        try {
+          const targets = await CDP.List(cdpAddress());
+          const pages = targets.filter((t) => t.type === "page");
+          result = pages.map((t, i) => ({
+            id: t.id, title: t.title, url: t.url, active: i === 0, owned: false,
+          }));
+          source = "drishti";
+        } catch { /* relay down: an empty list is the honest answer */ }
+      }
+      return { content: [{ type: "text", text: JSON.stringify({ tabs: result, count: result.length, source }) }] };
     },
   },
 
@@ -1248,11 +1262,16 @@ const tools = {
     schema: {},
     handler: async () => {
       const status = { connected: false, port: cfg.port, actualPort: null, running: false, pid: null, tabs: [] };
-      // Attach mode: no child process (browser === null) — liveness is the CDP link.
-      if ((browser && !browserExited) || (attached && !browserExited)) {
+      // Drishti is attach-only and owns no child process: `browser` stays null
+      // and `attached` stays false while a live WebView is right there. Liveness
+      // is the paired socket, exactly as it is for --attach-port. Without this,
+      // status answered "connected:false, tabs:[]" to an agent that was, at that
+      // moment, driving the page in front of the user.
+      const guest = Boolean(cfg.drishti && dctx);
+      if ((browser && !browserExited) || (attached && !browserExited) || guest) {
         status.running = true;
         status.pid = browser ? browser.pid : null;
-        if (attached) status.attached = true;
+        if (attached || guest) status.attached = true;
         status.tabs = listTabs();
         // actualCdpPort is the real bound port; cfg.port may be 0 (random).
         // Never fall back to a hardcoded 9222 — that could be another tool's browser.
@@ -1263,6 +1282,16 @@ const tools = {
             const targets = await CDP.List(cfg.drishti ? cdpAddress() : { port: listPort });
             status.connected = true;
             status.targets = targets.map(t => ({ type: t.type, url: t.url, title: t.title }));
+            // A guest's tabs are the app's, not ours — we never opened them, so
+            // they are owned:false and the agent may read but not drive them.
+            // Report them here rather than an empty registry: "0 tabs" next to a
+            // visible page is the kind of lie that makes an agent spawn work.
+            if (guest && status.tabs.length === 0) {
+              const pages = targets.filter(t => t.type === "page");
+              status.tabs = pages.map((t, i) => ({
+                id: t.id, title: t.title, url: t.url, active: i === 0, owned: false,
+              }));
+            }
           } catch { status.connected = false; }
         }
       }

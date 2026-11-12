@@ -31,6 +31,13 @@ import {
 
 const TOKEN = "0123456789abcdef0123456789abcdef";
 
+/** Resolve when `p` does, or give up after `ms` — never hold the event loop. */
+function withTimeout(p, ms) {
+  let timer;
+  const guard = new Promise((resolve) => { timer = setTimeout(resolve, ms); timer.unref?.(); });
+  return Promise.race([p, guard]).finally(() => clearTimeout(timer));
+}
+
 function tempStore(t) {
   const dir = mkdtempSync(join(tmpdir(), "bwb-drishti-"));
   const path = join(dir, "drishti.json");
@@ -127,7 +134,13 @@ async function mockDrishti(t, {
 
   // Upgrades never reach the request handler, so log them separately: this is
   // how the test proves the token stayed out of the WebSocket pathname.
-  server.on("upgrade", (req) => requests.push({ method: "UPGRADE", url: req.url }));
+  server.on("upgrade", (req, socket) => {
+    requests.push({ method: "UPGRADE", url: req.url });
+    // With no WebSocket server attached, a socket that is accepted and never
+    // answered is a client parked forever. Destroy it so the failure is loud
+    // and immediate instead of an eight-second timeout.
+    if (!wsServer) socket.destroy();
+  });
 
   let wss = null;
   if (wsServer) {
@@ -144,8 +157,18 @@ async function mockDrishti(t, {
 
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   t.after(async () => {
-    if (wss) await new Promise((r) => wss.close(r));
-    await new Promise((r) => server.close(r));
+    // Teardown order is not ours to trust: node:test runs after hooks in the
+    // order they were registered, so this can run while the CRI client from
+    // another hook is still connected — and both wss.close() and
+    // server.close() wait for that client to leave. Terminate the sockets
+    // first, then close, and cap each wait. A stuck socket here used to turn
+    // into a file that reported "Promise resolution is still pending but the
+    // event loop has already resolved" ninety seconds after every test passed.
+    if (wss) {
+      for (const client of wss.clients) { try { client.terminate(); } catch {} }
+      await withTimeout(new Promise((r) => wss.close(r)), 2000);
+    }
+    await withTimeout(new Promise((r) => server.close(r)), 2000);
   });
   return { port: server.address().port, requests, helps, setApprovals: (a) => { approvals = a; } };
 }
@@ -250,7 +273,7 @@ test("D2 end-to-end: CRI attaches with the token on HTTP and leaves the WS path 
   const opts = cdpOpts();
   // Same options bwb now hands to every CDP call.
   const cdp = await CDP({ ...opts, local: true });
-  t.after(() => { try { cdp.close(); } catch {} });
+  t.after(async () => { try { await cdp.close(); } catch {} });
 
   const response = await cdp.Runtime.evaluate({ expression: "1" });
   assert.equal(response.result.value, "mock-ok");
