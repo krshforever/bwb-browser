@@ -1292,7 +1292,12 @@ const tools = {
                 id: t.id, title: t.title, url: t.url, active: i === 0, owned: false,
               }));
             }
-          } catch { status.connected = false; }
+          } catch (err) {
+            // Say why. "connected:false" with no reason sends the agent off to
+            // inspect its own network instead of the phone's relay.
+            status.connected = false;
+            status.error = err?.message || String(err);
+          }
         }
       }
       try {
@@ -1456,7 +1461,7 @@ for (const [name, tool] of Object.entries(tools)) {
         criticalStreak = 0;
       }
       if (result && Array.isArray(result.content)) {
-        result.content.push({ type: "text", text: resourceFooter(sample, note) });
+        result.content.push({ type: "text", text: resourceFooter(sample, note, { guest: Boolean(attached || (cfg.drishti && dctx)) }) });
       }
     } catch {}
     return result;
