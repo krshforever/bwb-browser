@@ -40,6 +40,12 @@ a new thing that happens after every tool call. The routes it talks to ship in
   the agent learns to fear.
 
 ### Tested
+- **Walked on a phone, 2026-11-12.** `bwb` 4.6.0 against `drishti` 1.0.2
+  (`com.bwb.drishti.debug`): `bwb note` → `201 note_f5c7ae66`, `bwb notes` listed
+  the backlog without consuming it, the first pull delivered the note once, the
+  second returned nothing, and the cursor file held the id. What has *not* been
+  seen is a note landing inside a live MCP tool result — the in-session client was
+  holding a token from before a re-pair when this ran.
 - `test/notes.test.mjs`: 19 tests. Delivery exactly once, cursor survival across
   a restart, a corrupt cursor file, `cursor_unknown` warning, 404 tolerance,
   timeout tolerance, local rejection of empty and over-length text. Suite: 178
